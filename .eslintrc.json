@@ -1,0 +1,38 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "plugins": [
+    "@typescript-eslint",
+    "jest"
+  ],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:jest/recommended"
+  ],
+  "env": {
+    "node": true,
+    "jest": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "module"
+  },
+  "rules": {
+    "@typescript-eslint/explicit-module-boundary-types": "off",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-non-null-assertion": "warn",
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "quotes": ["error", "single"],
+    "semi": ["error", "always"]
+  },
+  "ignorePatterns": [
+    "dist/",
+    "node_modules/",
+    "*.js",
+    "drizzle/",
+    "__test__/",
+    "scripts/"
+  ]
+}

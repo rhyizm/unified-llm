@@ -1,0 +1,105 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# TypeScript
+*.tsbuildinfo
+
+# Compiled output
+/dist
+/out
+/build
+
+# MacOS
+.DS_Store
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Optional npm cache directory
+.npm
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional eslint cache
+.eslintcache
+
+# Visual Studio Code
+# Ignore all .vscode files except for specific settings
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Optional REPL history
+.node_repl_history
+
+# dotenv environment variables file
+.env
+.env.test
+.env.development
+.env.production
+
+# MacOS files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear on external disks
+.Spotlight-V100
+.Trashes
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# IntelliJ
+.idea/
+*.iml
+*.iws
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# NPM
+.npmrc
+
+# Personal Config
+.vscode/
+files/*
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Git configuration
+.gitconfig
+
+# Dev containers
+.devcontainer/
+
+# SQLite
+*.sqlite
+*.db
+
+# Local data directory
+data/
+
+# pnpm
+.pnpm-store
