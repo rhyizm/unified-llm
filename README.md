@@ -104,12 +104,14 @@ console.log('Complete response:', fullResponse);
 
 ## Function Calling
 
+The `defineTool` helper provides type safety for tool definitions, automatically inferring argument and return types from the handler function:
+
 ```typescript
-import { LLMClient, Tool } from '@unified-llm/core';
+import { LLMClient, defineTool } from '@unified-llm/core';
 import fs from 'fs/promises';
 
 // Let AI read and analyze any file
-const readFile: Tool = {
+const readFile = defineTool({
   type: 'function',
   function: {
     name: 'readFile',
@@ -122,11 +124,11 @@ const readFile: Tool = {
       required: ['filename']
     }
   },
-  handler: async ({ filename }) => {
-    const content = await fs.readFile(filename, 'utf8');
+  handler: async (args: { filename: string }) => {
+    const content = await fs.readFile(args.filename, 'utf8');
     return content;
   }
-};
+});
 
 const client = new LLMClient({
   provider: 'openai',
@@ -162,9 +164,9 @@ console.log(response.message.content);
 When using tools/functions, streaming will include both text content and function call information:
 
 ```typescript
-import { LLMClient, Tool } from '@unified-llm/core';
+import { LLMClient, defineTool } from '@unified-llm/core';
 
-const getWeather: Tool = {
+const getWeather = defineTool({
   type: 'function',
   function: {
     name: 'getWeather',
@@ -177,10 +179,10 @@ const getWeather: Tool = {
       required: ['location']
     }
   },
-  handler: async ({ location }) => {
-    return `Weather in ${location}: Sunny, 27°C`;
+  handler: async (args: { location: string }) => {
+    return `Weather in ${args.location}: Sunny, 27°C`;
   }
-};
+});
 
 const client = new LLMClient({
   provider: 'openai',

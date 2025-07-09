@@ -1,7 +1,7 @@
 import * as fs from 'fs';
-import { Tool } from '../../types/unified-api';
+import { defineTool } from '../../types/unified-api';
 
-export const cat: Tool = {
+export const cat = defineTool({
   type: 'function',
   function: {
     name: 'cat',
@@ -17,7 +17,7 @@ export const cat: Tool = {
       required: ['filePath']
     }
   },
-  handler: async (args: Record<string, any>) => {
+  handler: async (args: { filePath: string }) => {
     try {
       const fileContent = fs.readFileSync(args.filePath, 'utf-8');
       return fileContent;
@@ -25,4 +25,4 @@ export const cat: Tool = {
       throw new Error(`Failed to read file: ${error}`);
     }
   }
-};
+});

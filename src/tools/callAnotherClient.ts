@@ -1,8 +1,15 @@
 import { LLMClient } from '../llm-client';
-import { UnifiedChatResponse, Tool } from '../types/unified-api';
-import tools from '.';
+import { defineTool }  from '../types/unified-api';
+import type { Tool }  from '../types/unified-api';
 
-export const callAnotherClient: Tool = {
+// Tools will be injected at runtime to avoid circular dependency
+let injectedTools: Tool[] | undefined;
+
+export function setTools(tools: Tool[]) {
+  injectedTools = tools;
+}
+
+export const callAnotherClient = defineTool({
   type: 'function',
   function: {
     name: 'callAnotherClient',
@@ -22,12 +29,12 @@ export const callAnotherClient: Tool = {
       required: ['id', 'threadId']
     }
   },
-  handler: async (args: Record<string, any>): Promise<UnifiedChatResponse> => {
+  handler: async (args: { id: string; threadId: string }) => {
     const client = new LLMClient({
       id: args.id,
       provider: 'anthropic',
       apiKey: process.env.ANTHROPIC_API_KEY || '',
-      tools: tools,
+      tools: injectedTools
     });
 
     const response = await client.chat({
@@ -42,4 +49,4 @@ export const callAnotherClient: Tool = {
 
     return response;
   }
-};
+});

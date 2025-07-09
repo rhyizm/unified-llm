@@ -1,9 +1,9 @@
-import { Tool } from '../types/unified-api';
+import { defineTool } from '../types/unified-api';
 
 /**
  * Returns information about the project author
 */
-export const getAuthor: Tool = {
+export const getAuthor = defineTool({
   type: 'function',
   function: {
     name: 'getAuthor',
@@ -14,8 +14,7 @@ export const getAuthor: Tool = {
       required: []
     }
   },
-  args: {},
   handler: async () => {
     return 'The author of this project is rhyizm';
   }
-};
+});

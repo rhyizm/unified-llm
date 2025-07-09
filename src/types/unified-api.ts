@@ -95,10 +95,21 @@ export interface ToolDefinition {
   };
 }
 
-export interface Tool extends ToolDefinition {
-  handler: (args: Record<string, unknown>) => Promise<unknown>;
-  args?: Record<string, unknown>;
+export interface Tool<TArgs = any, TResult = any> extends ToolDefinition {
+  handler: (args: TArgs) => Promise<TResult | null>;
+  args?: any;
 }
+
+export const defineTool = <
+  T extends { handler: (args: any) => Promise<any> } & ToolDefinition
+>(
+  tool: T
+): Tool<
+  // handler の第 1 引数
+  Parameters<T['handler']>[0],
+  // handler の戻り値 (Promise を外す)
+  Awaited<ReturnType<T['handler']>>
+> => tool as any;
 
 export interface GenerationConfig {
   temperature?: number;

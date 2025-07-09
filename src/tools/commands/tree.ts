@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Tool } from '../../types/unified-api';
+import { defineTool } from '../../types/unified-api';
 
 const treeHelper = async (directory: string, indent: string = '', excludeFolders: string[] = [], isLast: boolean = true): Promise<string> => {
   let result = '';
@@ -28,7 +28,7 @@ const treeHelper = async (directory: string, indent: string = '', excludeFolders
   return result;
 };
 
-export const tree: Tool = {
+export const tree = defineTool({
   type: 'function',
   function: {
     name: 'tree',
@@ -51,9 +51,9 @@ export const tree: Tool = {
       required: []
     }
   },
-  handler: async (args: Record<string, any>) => {
+  handler: async (args: { directory?: string; excludeFolders?: string[] }) => {
     const directory = args.directory || '.';
     const excludeFolders = args.excludeFolders || ['node_modules', '.git'];
     return await treeHelper(directory, '', excludeFolders, true);
   }
-};
+});

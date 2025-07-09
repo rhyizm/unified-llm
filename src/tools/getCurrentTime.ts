@@ -1,6 +1,6 @@
-import { Tool } from '../types/unified-api';
+import { defineTool } from '../types/unified-api';
 
-export const getCurrentTime: Tool = {
+export const getCurrentTime = defineTool({
   type: 'function',
   function: {
     name: 'getCurrentTime',
@@ -14,4 +14,4 @@ export const getCurrentTime: Tool = {
   handler: async () => {
     return new Date().toISOString();
   }
-};
+});

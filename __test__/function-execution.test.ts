@@ -1,4 +1,5 @@
 import { LLMClient } from '../src';
+import type { Tool } from '../src/types/unified-api';
 import tools from '../src/tools';
 import dotenv from 'dotenv';
 
@@ -14,7 +15,7 @@ describe('Function Execution Test', () => {
       provider: 'anthropic',
       apiKey: process.env.ANTHROPIC_API_KEY!,
       model: 'claude-3-haiku-20240307',
-      tools: tools,
+      tools: tools as unknown as Tool[],
     });
 
     console.log('📋 Available functions:', Object.keys(tools));
@@ -108,7 +109,7 @@ describe('Function Execution Test', () => {
       
       try {
         if (funcName === 'getAuthor') {
-          const result = await func.handler({});
+          const result = await (func.handler as any)({});
           console.log(`✅ ${funcName} result:`, result);
           expect(result).toBe('The author of this project is rhyizm');
         } else {

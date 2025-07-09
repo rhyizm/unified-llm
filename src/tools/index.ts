@@ -1,10 +1,11 @@
 // src/openai/tools/index.ts
-import { cat, tree } from './commands';
-import { callAnotherClient } from './callAnotherClient';
+import { cat } from './commands/cat';
+import { tree } from './commands/tree';
+import { callAnotherClient, setTools } from './callAnotherClient';
 import { getAuthor } from './getAuthor';
 import { getProjectInfo } from './getProjectInfo';
 import { getCurrentTime } from './getCurrentTime';
-import { Tool } from '../types/unified-api';
+import type { Tool } from '../types/unified-api';
 
 export interface FunctionMap {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,7 +16,10 @@ export interface ArgumentMap {
   [functionName: string]: { [key: string]: string };
 }
 
-const tools: Tool[] = [cat, tree, callAnotherClient, getAuthor, getProjectInfo, getCurrentTime];
+const tools = [cat, tree, callAnotherClient, getAuthor, getProjectInfo, getCurrentTime] as const;
+
+// Inject tools into callAnotherClient to avoid circular dependency
+setTools(tools as unknown as Tool[]);
 
 export { callAnotherClient };
 

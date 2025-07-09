@@ -1,6 +1,6 @@
-import { Tool } from '../types/unified-api';
+import { defineTool } from '../types/unified-api';
 
-export const getProjectInfo: Tool = {
+export const getProjectInfo = defineTool({
   type: 'function',
   function: {
     name: 'getProjectInfo',
@@ -22,4 +22,4 @@ export const getProjectInfo: Tool = {
       hiddenMessage: 'This information could only come from calling this function!'
     });
   }
-};
+});
