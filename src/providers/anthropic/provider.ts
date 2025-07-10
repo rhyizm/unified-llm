@@ -96,15 +96,157 @@ export class AnthropicProvider extends BaseProvider {
     validateChatRequest(request);
     
     const anthropicRequest = await this.convertToAnthropicFormat(request);
-    const stream = await this.client.messages.create({
-      ...anthropicRequest,
-      stream: true,
-    });
+    let messages = [...anthropicRequest.messages];
     
-    for await (const chunk of stream) {
-      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-        yield this.convertStreamChunk(chunk);
+    // Keep trying to get a response until we don't get tool calls
+    while (true) {
+      const stream = await this.client.messages.create({
+        ...anthropicRequest,
+        messages,
+        stream: true,
+      });
+      
+      // Accumulate content blocks
+      const contentBlocks: any[] = [];
+      let stopReason: string | null = null;
+      let hasToolUse = false;
+      
+      // First pass: detect if there are tool calls
+      const allChunks: any[] = [];
+      for await (const chunk of stream) {
+        allChunks.push(chunk);
+        
+        if (chunk.type === 'content_block_start') {
+          contentBlocks.push({ ...chunk.content_block });
+          if (chunk.content_block.type === 'tool_use') {
+            hasToolUse = true;
+          }
+        } else if (chunk.type === 'content_block_delta') {
+          const blockIndex = chunk.index;
+          if (blockIndex < contentBlocks.length) {
+            const block = contentBlocks[blockIndex];
+            if (block.type === 'text' && chunk.delta.type === 'text_delta') {
+              block.text = (block.text || '') + chunk.delta.text;
+            } else if (block.type === 'tool_use' && chunk.delta.type === 'input_json_delta') {
+              // Accumulate tool input JSON
+              if (!block._rawInput) block._rawInput = '';
+              block._rawInput += chunk.delta.partial_json;
+            }
+          }
+        } else if (chunk.type === 'content_block_stop') {
+          const blockIndex = chunk.index;
+          if (blockIndex < contentBlocks.length) {
+            const block = contentBlocks[blockIndex];
+            if (block.type === 'tool_use' && block._rawInput) {
+              // Parse the complete tool input
+              try {
+                block.input = JSON.parse(block._rawInput);
+                delete block._rawInput;
+              } catch (_e) {
+                block.input = {};
+              }
+            }
+          }
+        } else if (chunk.type === 'message_delta') {
+          if (chunk.delta.stop_reason) {
+            stopReason = chunk.delta.stop_reason;
+          }
+        }
       }
+      
+      // If we have tool use and tools are available, execute them
+      if (stopReason === 'tool_use' && this.tools && hasToolUse) {
+        const toolUseBlocks = contentBlocks.filter(block => block.type === 'tool_use');
+        const toolResults: any[] = [];
+        
+        for (const toolBlock of toolUseBlocks) {
+          const customFunction = this.tools.find(func => func.function.name === toolBlock.name);
+          if (customFunction) {
+            try {
+              // Merge default args with tool input
+              const mergedArgs = {
+                ...(customFunction.args || {}),
+                ...(toolBlock.input as Record<string, any>)
+              };
+              const result = await customFunction.handler(mergedArgs);
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: toolBlock.id,
+                content: typeof result === 'string' ? result : JSON.stringify(result),
+              });
+            } catch (error) {
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: toolBlock.id,
+                is_error: true,
+                content: error instanceof Error ? error.message : 'Unknown error',
+              });
+            }
+          }
+        }
+        
+        // Continue with tool results if we have any
+        if (toolResults.length > 0) {
+          // Clean up contentBlocks before sending to API
+          const cleanContentBlocks = contentBlocks.map(block => {
+            const cleanBlock = { ...block };
+            delete cleanBlock._rawInput;
+            return cleanBlock;
+          });
+          
+          messages = [
+            ...messages,
+            {
+              role: 'assistant' as const,
+              content: cleanContentBlocks,
+            },
+            {
+              role: 'user' as const,
+              content: toolResults,
+            },
+          ];
+          // Continue the loop to get the next response
+          continue;
+        }
+      }
+      
+      // Second pass: yield chunks
+      if (!hasToolUse) {
+        // No tool use, stream text deltas immediately
+        for (const chunk of allChunks) {
+          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+            yield this.convertStreamChunk(chunk);
+          }
+        }
+      } else {
+        // Tool use was executed, now stream the final response
+        // Convert accumulated content blocks to streaming format
+        for (const block of contentBlocks) {
+          if (block.type === 'text' && block.text) {
+            // Simulate text streaming
+            const text = block.text;
+            const chunkSize = 20; // Approximate chunk size
+            for (let i = 0; i < text.length; i += chunkSize) {
+              const chunkText = text.slice(i, Math.min(i + chunkSize, text.length));
+              yield {
+                id: this.generateMessageId(),
+                model: this.model || 'claude-3-5-haiku-latest',
+                provider: 'anthropic',
+                message: {
+                  id: this.generateMessageId(),
+                  role: 'assistant',
+                  content: [{ type: 'text', text: chunkText }],
+                  created_at: new Date(),
+                },
+                created_at: new Date(),
+                raw_response: null,
+              };
+            }
+          }
+        }
+      }
+      
+      break;
     }
   }
   
