@@ -143,13 +143,138 @@ export class OpenAIProvider extends BaseProvider {
   
   private async *streamWithChatCompletions(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
     const openAIRequest = this.convertToOpenAIFormat(request);
-    const stream = await this.client.chat.completions.create({
-      ...openAIRequest,
-      stream: true,
-    });
+    let messages = [...openAIRequest.messages];
     
-    for await (const chunk of stream) {
-      yield this.convertStreamChunk(chunk);
+    // Keep trying to get a response until we don't get tool calls
+    while (true) {
+      const stream = await this.client.chat.completions.create({
+        ...openAIRequest,
+        messages,
+        stream: true,
+      });
+      
+      // Accumulate tool calls across chunks
+      const toolCallAccumulator: Map<number, {
+        id: string;
+        type: string;
+        function: {
+          name: string;
+          arguments: string;
+        };
+      }> = new Map();
+      
+      let finishReason: string | null = null;
+      const assistantMessage: any = { role: 'assistant', content: null };
+      let fullContent = '';
+      const bufferedChunks: OpenAI.ChatCompletionChunk[] = [];
+      let hasToolCalls = false;
+      
+      for await (const chunk of stream) {
+        // Handle tool calls in the delta
+        if (chunk.choices[0].delta.tool_calls) {
+          hasToolCalls = true;
+          for (const toolCallDelta of chunk.choices[0].delta.tool_calls) {
+            const index = toolCallDelta.index;
+            
+            if (!toolCallAccumulator.has(index)) {
+              // Initialize new tool call
+              toolCallAccumulator.set(index, {
+                id: toolCallDelta.id || '',
+                type: toolCallDelta.type || 'function',
+                function: {
+                  name: toolCallDelta.function?.name || '',
+                  arguments: toolCallDelta.function?.arguments || '',
+                }
+              });
+            } else {
+              // Accumulate arguments for existing tool call
+              const existing = toolCallAccumulator.get(index);
+              if (!existing) continue;
+              if (toolCallDelta.id) existing.id = toolCallDelta.id;
+              if (toolCallDelta.function?.name) existing.function.name = toolCallDelta.function.name;
+              if (toolCallDelta.function?.arguments) existing.function.arguments += toolCallDelta.function.arguments;
+            }
+          }
+        }
+        
+        // If we detect tool calls, start buffering. Otherwise, yield immediately.
+        if (hasToolCalls) {
+          bufferedChunks.push(chunk);
+          // Accumulate text content for tool call processing
+          if (chunk.choices[0].delta.content) {
+            fullContent += chunk.choices[0].delta.content;
+          }
+        } else {
+          // No tool calls detected yet, yield chunk immediately
+          yield this.convertStreamChunk(chunk);
+        }
+        
+        // Capture finish reason
+        if (chunk.choices[0].finish_reason) {
+          finishReason = chunk.choices[0].finish_reason;
+        }
+      }
+      
+      // If we have tool calls and tools are available, execute them
+      if (finishReason === 'tool_calls' && this.tools && toolCallAccumulator.size > 0) {
+        // Build the complete assistant message
+        if (fullContent) {
+          assistantMessage.content = fullContent;
+        }
+        
+        if (toolCallAccumulator.size > 0) {
+          assistantMessage.tool_calls = Array.from(toolCallAccumulator.values());
+        }
+        
+        const toolResults: any[] = [];
+        
+        for (const toolCall of toolCallAccumulator.values()) {
+          if (toolCall.type === 'function') {
+            const customFunction = this.tools.find(func => func.function.name === toolCall.function.name);
+            if (customFunction) {
+              try {
+                // Merge default args with function call args
+                const mergedArgs = {
+                  ...(customFunction.args || {}),
+                  ...JSON.parse(toolCall.function.arguments)
+                };
+                const result = await customFunction.handler(mergedArgs);
+                toolResults.push({
+                  role: 'tool' as const,
+                  content: typeof result === 'string' ? result : JSON.stringify(result),
+                  tool_call_id: toolCall.id,
+                });
+              } catch (error) {
+                toolResults.push({
+                  role: 'tool' as const,
+                  content: error instanceof Error ? error.message : 'Unknown error',
+                  tool_call_id: toolCall.id,
+                });
+              }
+            }
+          }
+        }
+        
+        // Continue with tool results if we have any
+        if (toolResults.length > 0) {
+          messages = [
+            ...messages,
+            assistantMessage,
+            ...toolResults,
+          ];
+          // Continue the loop to get the next response
+          continue;
+        }
+      }
+      
+      // If we buffered chunks due to tool calls but no tools to execute, yield them now
+      if (hasToolCalls && bufferedChunks.length > 0) {
+        for (const chunk of bufferedChunks) {
+          yield this.convertStreamChunk(chunk);
+        }
+      }
+      
+      break;
     }
   }
   
@@ -515,6 +640,20 @@ export class OpenAIProvider extends BaseProvider {
     
     if (delta.content) {
       content.push({ type: 'text', text: delta.content });
+    }
+    
+    // Handle tool calls in streaming chunks
+    if (delta.tool_calls) {
+      for (const toolCallDelta of delta.tool_calls) {
+        // In streaming, we get partial tool calls, so we need to indicate this is a partial update
+        // The actual accumulation and execution happens in streamWithChatCompletions
+        content.push({
+          type: 'tool_use',
+          id: toolCallDelta.id || `partial-${toolCallDelta.index}`,
+          name: toolCallDelta.function?.name || '',
+          input: {}, // Input will be accumulated in streamWithChatCompletions
+        });
+      }
     }
     
     const unifiedMessage: Message = {
