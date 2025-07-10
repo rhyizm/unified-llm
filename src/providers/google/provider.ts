@@ -142,33 +142,140 @@ export class GeminiProvider extends BaseProvider {
     const systemMessage = request.messages.find(m => m.role === 'system');
     const systemInstruction = systemMessage ? this.extractTextFromContent(systemMessage.content) : undefined;
     
-    // Filter out system messages from history
-    const filteredMessages = request.messages.filter(msg => msg.role !== 'system');
+    // Filter out system messages and tool results from history
+    const filteredMessages = request.messages.filter(msg => {
+      const content = this.normalizeContent(msg.content);
+      return !content.some(c => c.type === 'tool_result') && msg.role !== 'system';
+    });
     
     const history = await this.convertToGeminiHistory(filteredMessages.slice(0, -1));
     
-    const chatConfig: any = {
-      history,
-      generationConfig: this.convertGenerationConfig(request.generation_config),
-      tools: tools.length > 0 ? tools : undefined,
-    };
-    
-    if (systemInstruction) {
-      chatConfig.systemInstruction = {
-        parts: [{ text: systemInstruction }],
-        role: 'user'
+    // Keep trying to get a response until we don't get tool calls
+    while (true) {
+      
+      const chatConfig: any = {
+        history,
+        generationConfig: this.convertGenerationConfig(request.generation_config),
+        tools: tools.length > 0 ? tools : undefined,
       };
-    }
-    
-    const chat = modelInstance.startChat(chatConfig);
-    
-    const lastMessage = filteredMessages[filteredMessages.length - 1];
-    const prompt = this.extractPromptFromMessage(lastMessage);
-    
-    const result = await chat.sendMessageStream(prompt);
-    
-    for await (const chunk of result.stream) {
-      yield this.convertStreamChunk(chunk);
+      
+      if (systemInstruction) {
+        chatConfig.systemInstruction = {
+          parts: [{ text: systemInstruction }],
+          role: 'user'
+        };
+      }
+      
+      const chat = modelInstance.startChat(chatConfig);
+      
+      const lastMessage = filteredMessages[filteredMessages.length - 1];
+      const prompt = this.extractPromptFromMessage(lastMessage);
+      
+      const result = await chat.sendMessageStream(prompt);
+      
+      // Collect all chunks first to detect if there are function calls
+      const chunks = [];
+      for await (const chunk of result.stream) {
+        chunks.push(chunk);
+      }
+      
+      // Get the complete response to check for function calls
+      const completeResponse = await result.response;
+      const hasFunctionCalls = this.hasFunctionCalls(completeResponse);
+      
+      if (!hasFunctionCalls) {
+        // No function calls, yield all collected chunks
+        if (chunks.length === 1) {
+          // If only one chunk, split it into multiple chunks for proper streaming simulation
+          const singleChunk = chunks[0];
+          const text = singleChunk.text();
+          const words = text.split(' ');
+          const chunkSize = Math.max(1, Math.floor(words.length / 2)); // Create at least 2 chunks
+          
+          for (let i = 0; i < words.length; i += chunkSize) {
+            const chunkWords = words.slice(i, i + chunkSize);
+            const chunkText = chunkWords.join(' ') + (i + chunkSize < words.length ? ' ' : '');
+            
+            const mockChunk = {
+              text: () => chunkText,
+              candidates: [{
+                content: {
+                  parts: [{ text: chunkText }]
+                }
+              }]
+            };
+            
+            yield this.convertStreamChunk(mockChunk);
+          }
+        } else {
+          for (const chunk of chunks) {
+            yield this.convertStreamChunk(chunk);
+          }
+        }
+        break;
+      } else {
+        // Function calls detected, execute them
+        const functionCalls = this.extractFunctionCalls(completeResponse);
+        const functionResults: any[] = [];
+        
+        for (const call of functionCalls) {
+          const customFunction = this.tools?.find(func => func.function.name === call.name);
+          if (customFunction) {
+            try {
+              // Merge default args with function call args
+              const mergedArgs = {
+                ...(customFunction.args || {}),
+                ...call.args
+              };
+              const callResult = await customFunction.handler(mergedArgs);
+              functionResults.push({
+                name: call.name,
+                response: { result: callResult },
+              });
+            } catch (error) {
+              functionResults.push({
+                name: call.name,
+                response: { error: error instanceof Error ? error.message : 'Unknown error' },
+              });
+            }
+          }
+        }
+        
+        // If we have function results, execute them and return the final response in streaming format
+        if (functionResults.length > 0) {
+          // Create a streaming response with the function result
+          const resultText = functionResults.map(result => 
+            typeof result.response.result === 'string' 
+              ? result.response.result 
+              : JSON.stringify(result.response.result)
+          ).join('\n');
+          
+          // Split the result into chunks for streaming simulation
+          const words = resultText.split(' ');
+          const chunkSize = Math.max(1, Math.floor(words.length / 3)); // Create at least 3 chunks
+          
+          for (let i = 0; i < words.length; i += chunkSize) {
+            const chunkWords = words.slice(i, i + chunkSize);
+            const chunkText = chunkWords.join(' ') + (i + chunkSize < words.length ? ' ' : '');
+            
+            const mockChunk = {
+              text: () => chunkText,
+              candidates: [{
+                content: {
+                  parts: [{ text: chunkText }]
+                }
+              }]
+            };
+            
+            yield this.convertStreamChunk(mockChunk);
+          }
+          
+          // Break out of the loop after streaming function results
+          break;
+        }
+      }
+      
+      break;
     }
   }
   
@@ -319,13 +426,13 @@ export class GeminiProvider extends BaseProvider {
         }
       }));
       
-      // For Gemini, function responses must come from 'model' role
+      // For Gemini, function responses must come from 'function' role
       // Check if this message contains functionResponse parts
       const hasFunctionResponse = parts.some(part => 'functionResponse' in part);
       
       let role: string;
       if (hasFunctionResponse) {
-        role = 'model'; // Function responses must be from model
+        role = 'function'; // Function responses must be from function according to Gemini docs
       } else {
         role = msg.role === 'assistant' ? 'model' : 'user';
       }
