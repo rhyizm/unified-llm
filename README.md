@@ -107,7 +107,8 @@ console.log('Complete response:', fullResponse);
 The `defineTool` helper provides type safety for tool definitions, automatically inferring argument and return types from the handler function:
 
 ```typescript
-import { LLMClient, defineTool } from '@unified-llm/core';
+import { LLMClient } from '@unified-llm/core';
+import { defineTool } from '@unified-llm/core/tools';
 import fs from 'fs/promises';
 
 // Let AI read and analyze any file
@@ -164,7 +165,8 @@ console.log(response.message.content);
 When using tools/functions, streaming will include both text content and function call information:
 
 ```typescript
-import { LLMClient, defineTool } from '@unified-llm/core';
+import { LLMClient } from '@unified-llm/core';
+import { defineTool } from '@unified-llm/core/tools';
 
 const getWeather = defineTool({
   type: 'function',

@@ -6,6 +6,7 @@ import { getAuthor } from './getAuthor';
 import { getProjectInfo } from './getProjectInfo';
 import { getCurrentTime } from './getCurrentTime';
 import type { Tool } from '../types/unified-api';
+import { defineTool } from '../types/unified-api';
 
 export interface FunctionMap {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -21,6 +22,6 @@ const tools = [cat, tree, callAnotherClient, getAuthor, getProjectInfo, getCurre
 // Inject tools into callAnotherClient to avoid circular dependency
 setTools(tools as unknown as Tool[]);
 
-export { callAnotherClient };
+export { callAnotherClient, defineTool };
 
 export default tools;
