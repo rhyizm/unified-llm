@@ -4,8 +4,6 @@ import { AnthropicProvider } from './providers/anthropic';
 import { GeminiProvider } from './providers/google';
 import { DeepSeekProvider } from './providers/deepseek';
 import { ToolDefinition, Tool } from './types/unified-api';
-import { clientRepository, ClientRepository } from './database/client-repository';
-import { LLMClientConfig as StoredLLMClientConfig } from './database/schema';
 
 // LLMClient構成オプション（実行時用）
 export interface LLMClientRuntimeConfig {
@@ -27,8 +25,8 @@ export interface LLMClientRuntimeConfig {
   instructions?: string;
 }
 
-// 保存用設定（StoredLLMClientConfigのエイリアス）
-export type LLMClientConfig = StoredLLMClientConfig;
+// 保存用設定（実行時設定と同じ）
+export type LLMClientConfig = LLMClientRuntimeConfig;
 
 // ファクトリークラス
 export class LLMClient {
@@ -330,141 +328,8 @@ export class LLMClient {
     return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  // ========== 永続化機能 ==========
-
-  /**
-   * 保存されたアシスタント設定からLLMClientインスタンスを作成
-   */
-  static async fromSaved(id: string, apiKey?: string): Promise<LLMClient> {
-    const storedConfig = await clientRepository.findById(id);
-    if (!storedConfig) {
-      throw new Error(`LLMClient with ID ${id} not found`);
-    }
-
-    const config = ClientRepository.toConfig(storedConfig);
-    
-    // APIキーの優先順位: 引数 > 保存された値 > 環境変数
-    const finalApiKey = apiKey || config.apiKey || process.env[`${config.provider.toUpperCase()}_API_KEY`];
-    if (!finalApiKey) {
-      throw new Error(`API key not found for provider ${config.provider}`);
-    }
-
-    const runtimeConfig: LLMClientRuntimeConfig = {
-      id: config.id,
-      provider: config.provider,
-      apiKey: finalApiKey,
-      model: config.model,
-      generationConfig: config.generationConfig,
-      systemPrompt: config.systemPrompt,
-      instructions: config.instructions,
-    };
-
-    return new LLMClient(runtimeConfig);
-  }
-
-  /**
-   * LLMクライアント設定を保存
-   */
-  static async save(config: LLMClientConfig): Promise<string> {
-    const validation = ClientRepository.validateConfig(config);
-    if (!validation.valid) {
-      throw new Error(`Invalid LLM client configuration: ${validation.errors.join(', ')}`);
-    }
-
-    const saved = await clientRepository.save(config);
-    return saved.id;
-  }
-
-  /**
-   * 保存されたアシスタントの一覧を取得
-   */
-  static async list(options?: {
-    provider?: 'openai' | 'anthropic' | 'google' | 'deepseek';
-    tags?: string[];
-    includeInactive?: boolean;
-  }): Promise<LLMClientConfig[]> {
-    let assistants;
-
-    if (options?.provider) {
-      assistants = await clientRepository.findByProvider(options.provider);
-    } else if (options?.tags) {
-      assistants = await clientRepository.findByTags(options.tags);
-    } else {
-      assistants = await clientRepository.findAll(options?.includeInactive);
-    }
-
-    return assistants.map(ClientRepository.toConfig);
-  }
-
-  /**
-   * 保存されたアシスタント設定を取得
-   */
-  static async getConfig(id: string): Promise<LLMClientConfig | null> {
-    const stored = await clientRepository.findById(id);
-    return stored ? ClientRepository.toConfig(stored) : null;
-  }
-
-  /**
-   * アシスタント設定を更新
-   */
-  static async update(id: string, updates: Partial<LLMClientConfig>): Promise<boolean> {
-    const existing = await clientRepository.findById(id);
-    if (!existing) {
-      throw new Error(`LLMClient with ID ${id} not found`);
-    }
-
-    const currentConfig = ClientRepository.toConfig(existing);
-    const updatedConfig: LLMClientConfig = {
-      ...currentConfig,
-      ...updates,
-      id, // IDは変更不可
-    };
-
-    const validation = ClientRepository.validateConfig(updatedConfig);
-    if (!validation.valid) {
-      throw new Error(`Invalid LLM client configuration: ${validation.errors.join(', ')}`);
-    }
-
-    await clientRepository.save(updatedConfig);
-    return true;
-  }
-
-  /**
-   * アシスタントを削除（論理削除）
-   */
-  static async delete(id: string): Promise<boolean> {
-    return await clientRepository.delete(id);
-  }
-
-  /**
-   * アシスタントを物理削除
-   */
-  static async hardDelete(id: string): Promise<boolean> {
-    return await clientRepository.hardDelete(id);
-  }
-
-  /**
-   * 現在のアシスタント設定を保存
-   */
-  async saveConfiguration(name: string, description?: string): Promise<string> {
-    if (!this.id) {
-      throw new Error('Cannot save configuration: Assistant ID not set');
-    }
-
-    // 現在の設定から保存用設定を構築
-    const config: LLMClientConfig = {
-      id: this.id,
-      name,
-      description,
-      provider: this.baseProvider.constructor.name.toLowerCase().replace('provider', '') as any,
-      model: this.baseProvider.modelName,
-      tools: this.tools ? Object.keys(this.tools) : undefined,
-      // Note: API key, systemPrompt, instructions などは現在の実装では取得できないため、
-      // 明示的に渡すか、別途設定する必要があります
-    };
-
-    return await LLMClient.save(config);
-  }
+  // Note: v0.4.0 removed all persistence methods.
+  // Use ClientManager for preset configurations.
 }
 
 export default LLMClient;

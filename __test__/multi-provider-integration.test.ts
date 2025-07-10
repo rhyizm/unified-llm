@@ -8,37 +8,19 @@
  * - Anthropic Claude model integration / Anthropic Claudeモデル統合
  * - Google Gemini model integration / Google Geminiモデル統合
  * - Multi-provider conversation handling / 複数プロバイダー会話処理
- * - Cross-provider data persistence / プロバイダー間データ永続化
+ * - In-memory thread management / インメモリスレッド管理
  * 
  * Note: Tests are conditionally executed based on API key availability
  * 注意: APIキーの利用可能性に基づいてテストが条件付きで実行されます
  */
 
 import { LLMClient, Thread } from '../src';
-import { rm } from 'fs/promises';
-import path from 'path';
 import dotenv from 'dotenv';
 
 // Load environment variables for API keys
 // APIキー用の環境変数を読み込み
 dotenv.config();
 
-// Mock libsql to avoid native binding issues
-jest.mock('libsql', () => {
-  const mockDb = {
-    exec: jest.fn(),
-    prepare: jest.fn().mockReturnValue({
-      run: jest.fn(),
-      get: jest.fn(),
-      all: jest.fn().mockReturnValue([]),
-    }),
-    close: jest.fn(),
-    transaction: jest.fn().mockImplementation((fn) => fn),
-  };
-  return { Database: jest.fn().mockImplementation(() => mockDb) };
-});
-
-// Mock database connection to avoid permission errors
 // Mock LLMClient to avoid actual API calls
 jest.mock('../src/llm-client', () => ({
   LLMClient: jest.fn().mockImplementation((config) => ({
@@ -46,88 +28,27 @@ jest.mock('../src/llm-client', () => ({
     model: config.model,
     apiKey: config.apiKey,
     systemPrompt: config.systemPrompt,
-    sendMessage: jest.fn().mockResolvedValue({
-      content: `Hello from ${config.provider === 'openai' ? 'OpenAI' : config.provider === 'anthropic' ? 'Claude' : 'Gemini'}!`,
-      role: 'assistant',
+    chat: jest.fn().mockResolvedValue({
+      id: `msg_${Date.now()}`,
+      model: config.model || 'test-model',
+      provider: config.provider,
+      message: {
+        id: `msg_${Date.now()}`,
+        role: 'assistant',
+        content: `Hello from ${config.provider === 'openai' ? 'OpenAI' : config.provider === 'anthropic' ? 'Claude' : 'Gemini'}!`,
+        created_at: new Date()
+      },
       usage: {
-        prompt_tokens: 10,
-        completion_tokens: 10,
+        input_tokens: 10,
+        output_tokens: 10,
         total_tokens: 20
-      }
+      },
+      created_at: new Date()
     })
   }))
 }));
 
-jest.mock('../src/database/connection', () => {
-  const mockQueryBuilder = {
-    values: jest.fn().mockReturnThis(),
-    returning: jest.fn().mockResolvedValue([{ 
-      id: 'test-chat-id', 
-      title: 'Multi-Provider Integration Test', 
-      createdAt: new Date(), 
-      updatedAt: new Date() 
-    }]),
-    set: jest.fn().mockReturnThis(),
-    where: jest.fn().mockReturnThis(),
-    from: jest.fn().mockReturnThis(),
-    orderBy: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    offset: jest.fn().mockReturnThis(),
-  };
-
-  return {
-    DatabaseManager: {
-      getInstance: jest.fn().mockReturnValue({
-        getDb: jest.fn().mockReturnValue({
-          insert: jest.fn().mockReturnValue(mockQueryBuilder),
-          select: jest.fn().mockReturnValue({
-            ...mockQueryBuilder,
-            from: jest.fn().mockReturnValue({
-              ...mockQueryBuilder,
-              where: jest.fn().mockReturnValue({
-                ...mockQueryBuilder,
-                limit: jest.fn().mockResolvedValue([])
-              }),
-            }),
-          }),
-          update: jest.fn().mockReturnValue({
-            set: jest.fn().mockReturnValue({
-              where: jest.fn().mockResolvedValue({ changes: 1 }),
-            }),
-          }),
-        }),
-        getSqlite: jest.fn().mockReturnValue({
-          prepare: jest.fn().mockReturnValue({
-            get: jest.fn(),
-            all: jest.fn().mockReturnValue([]),
-            run: jest.fn().mockReturnValue({ lastInsertRowid: 1, changes: 1 }),
-          }),
-        }),
-      }),
-    },
-    getDatabase: jest.fn().mockReturnValue({
-      insert: jest.fn().mockReturnValue(mockQueryBuilder),
-      select: jest.fn().mockReturnValue({
-        ...mockQueryBuilder,
-        from: jest.fn().mockReturnValue({
-          ...mockQueryBuilder,
-          where: jest.fn().mockReturnValue({
-            ...mockQueryBuilder,
-            limit: jest.fn().mockResolvedValue([])
-          }),
-        }),
-      }),
-      update: jest.fn().mockReturnValue({
-        set: jest.fn().mockReturnValue({
-          where: jest.fn().mockResolvedValue({ changes: 1 }),
-        }),
-      }),
-    }),
-  };
-});
-
 describe('Multi-Provider Integration Test', () => {
-  let testDbPath: string;
   let session: Thread;
 
   // Check API key availability for conditional test execution
@@ -137,256 +58,209 @@ describe('Multi-Provider Integration Test', () => {
   const hasGoogle = !!process.env.GEMINI_API_KEY || true; // Force tests to run with mocks
 
   /**
-   * Setup: Create isolated test environment for each test
-   * セットアップ: 各テスト用の分離されたテスト環境を作成
-   * Creates unique database path to prevent test interference
-   * テスト間の干渉を防ぐために一意のデータベースパスを作成
+   * Setup: Create test environment for each test
+   * セットアップ: 各テスト用のテスト環境を作成
    */
   beforeEach(async () => {
-    // Generate unique test database path for each test
-    testDbPath = path.join(process.cwd(), 'test-data', `integration-test-${Date.now()}-${Math.random().toString(36).substring(2, 11)}.db`);
-    
     session = new Thread({
-      dbPath: testDbPath,
       title: 'Multi-Provider Integration Test',
-      autoSave: true,
     });
-
-    // Mock session methods
-    session.addAssistant = jest.fn().mockResolvedValue(true);
-    session.sendMessage = jest.fn().mockImplementation(async (message) => {
-      return [{
-        provider: 'openai',
-        model: 'gpt-4-turbo-preview',
-        message: {
-          content: 'Hello from OpenAI!',
-          role: 'assistant'
-        },
-        usage: {
-          prompt_tokens: 10,
-          completion_tokens: 10,
-          total_tokens: 20
-        }
-      }];
-    });
-    session.getStats = jest.fn().mockResolvedValue({
-      messageCount: 2,
-      participants: ['openai-gpt'],
-      totalTokens: 20,
-      totalCost: 0.001
-    });
-    session.save = jest.fn().mockResolvedValue(true);
   });
 
   /**
-   * Cleanup: Remove test database after each test
-   * クリーンアップ: 各テスト後にテストデータベースを削除
-   * Ensures no data pollution between test runs
-   * テスト実行間でのデータ汚染を防ぐ
+   * Cleanup: Clear test data after each test
+   * クリーンアップ: 各テスト後にテストデータをクリア
    */
   afterEach(async () => {
-    // Clean up test database after each test
-    // 各テスト後にテストデータベースをクリーンアップ
-    try {
-      await rm(testDbPath);
-    } catch (error) {
-      // File doesn't exist, that's fine
-      // ファイルが存在しない場合は問題なし
-    }
+    // Clear session data
+    session.clearMessages();
   });
 
   /**
    * Test: Multi-provider conversation handling
-   * テスト: 複数プロバイダー会話処理
-   * Verifies all three providers can participate in same conversation
-   * 3つのプロバイダーすべてが同じ会話に参加できることを検証
-   * Tests message routing, response coordination, and data persistence
-   * メッセージルーティング、応答調整、データ永続化をテスト
-   * Most comprehensive integration test requiring all API keys
-   * すべてのAPIキーが必要な最も包括的な統合テスト
+   * テスト: マルチプロバイダー会話処理
+   * Verifies that multiple providers can participate in same thread
+   * 複数のプロバイダーが同じスレッドに参加できることを確認
    */
-  (hasOpenAI && hasAnthropic && hasGoogle ? it : it.skip)('should handle multiple assistants in one conversation', async () => {
-    // Add all three assistants
-    const openaiAssistant = new LLMClient({
-      provider: 'openai',
-      apiKey: process.env.OPENAI_API_KEY || 'mock-openai-key',
-      model: 'gpt-4-turbo-preview',
-    });
-
-    const AnthropicProvider = new LLMClient({
-      provider: 'anthropic',
-      apiKey: process.env.ANTHROPIC_API_KEY || 'mock-anthropic-key',
-      model: 'claude-3-haiku-20240307',
-    });
-
-    const googleAssistant = new LLMClient({
-      provider: 'google',
-      apiKey: process.env.GEMINI_API_KEY || 'mock-google-key',
-      model: 'gemini-pro',
-    });
-
-    await session.addAssistant(openaiAssistant, 'openai', {
-      provider: 'openai',
-      model: 'gpt-4-turbo-preview',
-    });
-
-    await session.addAssistant(AnthropicProvider, 'anthropic', {
-      provider: 'anthropic',
-      model: 'claude-3-haiku-20240307',
-    });
-
-    await session.addAssistant(googleAssistant, 'google', {
-      provider: 'google',
-      model: 'gemini-pro',
-    });
-
-    // Mock response for multiple assistants
-    session.sendMessage = jest.fn().mockResolvedValue([
-      {
+  (hasOpenAI && hasAnthropic && hasGoogle ? it : it.skip)(
+    'should handle multi-provider conversation in thread', 
+    async () => {
+      // Create clients from different providers
+      // 異なるプロバイダーからクライアントを作成
+      const openaiClient = new LLMClient({
         provider: 'openai',
-        model: 'gpt-4-turbo-preview',
-        message: { content: 'OpenAI', role: 'assistant' },
-        usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }
-      },
-      {
+        apiKey: process.env.OPENAI_API_KEY || 'test-key',
+        model: 'gpt-4-turbo-preview'
+      });
+
+      const anthropicClient = new LLMClient({
         provider: 'anthropic',
-        model: 'claude-3-haiku-20240307',
-        message: { content: 'Anthropic', role: 'assistant' },
-        usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }
-      },
-      {
+        apiKey: process.env.ANTHROPIC_API_KEY || 'test-key',
+        model: 'claude-3-opus-20240229'
+      });
+
+      const geminiClient = new LLMClient({
         provider: 'google',
-        model: 'gemini-pro',
-        message: { content: 'Google', role: 'assistant' },
-        usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }
-      }
-    ]);
+        apiKey: process.env.GEMINI_API_KEY || 'test-key',
+        model: 'gemini-pro'
+      });
 
-    session.getStats = jest.fn().mockResolvedValue({
-      messageCount: 4,
-      participants: ['openai', 'anthropic', 'google'],
-      totalTokens: 36,
-      totalCost: 0.003
-    });
+      // Add all providers to the thread
+      // スレッドにすべてのプロバイダーを追加
+      session.addAssistant(openaiClient, 'openai-gpt');
+      session.addAssistant(anthropicClient, 'anthropic-claude');
+      session.addAssistant(geminiClient, 'google-gemini');
 
-    // Mock Thread.loadChat static method
-    jest.spyOn(Thread, 'loadChat').mockResolvedValue(session);
+      // Send message and get responses
+      // メッセージを送信して応答を取得
+      const responses = await session.broadcast('Tell me about AI');
 
-    // Send a message to all assistants
-    const responses = await session.sendMessage('Hello! Please each respond with your provider name (OpenAI, Anthropic, or Google).');
-    
-    // Should get 3 responses
-    expect(responses).toHaveLength(3);
-    
-    // Check that we got responses from all providers
-    const providers = responses.map(r => r.provider).sort();
-    expect(providers).toEqual(['anthropic', 'google', 'openai']);
+      // Verify we got responses from all providers
+      // すべてのプロバイダーから応答を得たことを確認
+      expect(responses.size).toBe(3);
+      expect(responses.has('openai-gpt')).toBe(true);
+      expect(responses.has('anthropic-claude')).toBe(true);
+      expect(responses.has('google-gemini')).toBe(true);
 
-    // Check database persistence
-    const stats = await session.getStats();
-    expect(stats.messageCount).toBeGreaterThanOrEqual(4); // 1 user + 3 assistant messages
-    expect(stats.participants.sort()).toEqual(['anthropic', 'google', 'openai']);
-
-    // Test loading the session
-    const loadedSession = await Thread.loadChat(session.id, { dbPath: testDbPath });
-    expect(loadedSession).toBeTruthy();
-    expect(loadedSession!.messages.length).toBe(session.messages.length);
-  }, 60000);
+      // Verify message history
+      // メッセージ履歴を確認
+      const conversation = session.getConversation();
+      expect(conversation.messages.length).toBe(4); // 1 user + 3 assistant messages
+      expect(conversation.metadata?.client_count).toBe(3);
+    }
+  );
 
   /**
-   * Test: Conversation history and context persistence
-   * テスト: 会話履歴とコンテキスト永続化
-   * Verifies conversation context is maintained across multiple messages
-   * 複数メッセージ間で会話コンテキストが維持されることを検証
-   * Tests memory and reference resolution across turns
-   * ターン間でのメモリと参照解決をテスト
-   * Validates database persistence of conversation state
-   * 会話状態のデータベース永続化を検証
+   * Test: Sequential messaging to specific providers
+   * テスト: 特定のプロバイダーへの順次メッセージング
+   * Verifies targeted messaging within multi-provider thread
+   * マルチプロバイダースレッド内でのターゲットメッセージングを確認
    */
-  (hasOpenAI ? it : it.skip)('should handle conversation history correctly', async () => {
-    const assistant = new LLMClient({
-      provider: 'openai',
-      apiKey: process.env.OPENAI_API_KEY || 'mock-key',
-      model: 'gpt-4-turbo-preview',
-    });
+  (hasOpenAI && hasAnthropic ? it : it.skip)(
+    'should handle sequential messaging to specific providers',
+    async () => {
+      // Create and add two clients
+      // 2つのクライアントを作成して追加
+      const openaiClient = new LLMClient({
+        provider: 'openai',
+        apiKey: process.env.OPENAI_API_KEY || 'test-key',
+        model: 'gpt-4'
+      });
 
-    await session.addAssistant(assistant, 'openai', {
-      provider: 'openai',
-      model: 'gpt-4-turbo-preview',
-    });
+      const anthropicClient = new LLMClient({
+        provider: 'anthropic',
+        apiKey: process.env.ANTHROPIC_API_KEY || 'test-key',
+        model: 'claude-3-sonnet-20240229'
+      });
 
-    // Mock messages array to simulate conversation history
-    session.messages = [];
+      session.addAssistant(openaiClient, 'gpt');
+      session.addAssistant(anthropicClient, 'claude');
 
-    // Mock first response
-    session.sendMessage = jest.fn().mockResolvedValueOnce([{
-      provider: 'openai',
-      model: 'gpt-4-turbo-preview',
-      message: {
-        content: 'Hello Alice! Nice to meet you.',
-        role: 'assistant'
-      },
-      usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }
-    }]);
+      // Send targeted messages
+      // ターゲットメッセージを送信
+      const gptResponse = await session.sendTo('gpt', 'What is 2+2?');
+      expect(gptResponse).toBeTruthy();
+      expect(gptResponse?.message.content).toContain('OpenAI');
 
-    // First message
-    await session.sendMessage('My name is Alice.');
-    
-    // Mock second response that references the name
-    session.sendMessage = jest.fn().mockResolvedValueOnce([{
-      provider: 'openai',
-      model: 'gpt-4-turbo-preview',
-      message: {
-        content: 'Your name is Alice.',
-        role: 'assistant'
-      },
-      usage: { prompt_tokens: 15, completion_tokens: 8, total_tokens: 23 }
-    }]);
+      const claudeResponse = await session.sendTo('claude', 'What is 3+3?');
+      expect(claudeResponse).toBeTruthy();
+      expect(claudeResponse?.message.content).toContain('Claude');
 
-    // Mock messages array to simulate 4 messages
-    session.messages = [
-      { id: '1', role: 'user', content: 'My name is Alice.', created_at: new Date() },
-      { id: '2', role: 'assistant', content: 'Hello Alice! Nice to meet you.', created_at: new Date() },
-      { id: '3', role: 'user', content: 'What is my name?', created_at: new Date() },
-      { id: '4', role: 'assistant', content: 'Your name is Alice.', created_at: new Date() }
-    ];
-
-    session.getStats = jest.fn().mockResolvedValue({
-      messageCount: 4,
-      participants: ['openai'],
-      totalTokens: 43,
-      totalCost: 0.002
-    });
-    
-    // Second message referring to first
-    const responses = await session.sendMessage('What is my name?');
-    
-    expect(responses).toHaveLength(1);
-    const response = responses[0];
-    
-    // The assistant should remember the name from the conversation history
-    expect(typeof response.message.content).toBeTruthy();
-    
-    // Should have 4 messages: user1, assistant1, user2, assistant2
-    expect(session.messages).toHaveLength(4);
-    
-    // Verify database persistence
-    const stats = await session.getStats();
-    expect(stats.messageCount).toBe(4);
-  }, 30000);
+      // Verify message ordering
+      // メッセージの順序を確認
+      const messages = session.getConversation().messages;
+      expect(messages.length).toBe(4); // 2 user + 2 assistant
+      expect(messages[0].metadata?.directed_to).toBe('gpt');
+      expect(messages[2].metadata?.directed_to).toBe('claude');
+    }
+  );
 
   /**
-   * Test: API key availability diagnostic
-   * テスト: APIキー利用可能性診断
-   * Utility test that always passes but reports available API keys
-   * 常に成功するが利用可能なAPIキーを報告するユーティリティテスト
-   * Helps developers understand which integration tests will run
-   * どの統合テストが実行されるかを開発者が理解するのに役立つ
-   * Does not require any API keys to execute
-   * 実行にはAPIキーは不要
+   * Test: Provider removal from thread
+   * テスト: スレッドからのプロバイダー削除
+   * Verifies dynamic provider management in active threads
+   * アクティブスレッドでの動的プロバイダー管理を確認
    */
-  it('should show available API keys for testing', () => {
-    // Check API key availability without logging
-    expect(true).toBe(true); // Always pass this test
+  it('should handle provider removal from thread', async () => {
+    // Add multiple clients
+    // 複数のクライアントを追加
+    const client1 = new LLMClient({
+      provider: 'openai',
+      apiKey: 'test-key',
+      model: 'gpt-4'
+    });
+
+    const client2 = new LLMClient({
+      provider: 'anthropic',
+      apiKey: 'test-key',
+      model: 'claude-3-haiku-20240307'
+    });
+
+    session.addAssistant(client1, 'assistant1');
+    session.addAssistant(client2, 'assistant2');
+
+    expect(session.getClientNames()).toContain('assistant1');
+    expect(session.getClientNames()).toContain('assistant2');
+
+    // Remove one client
+    // 1つのクライアントを削除
+    const removed = session.removeAssistant('assistant1');
+    expect(removed).toBe(true);
+    expect(session.getClientNames()).not.toContain('assistant1');
+    expect(session.getClientNames()).toContain('assistant2');
+  });
+
+  /**
+   * Test: Empty thread behavior
+   * テスト: 空のスレッドの動作
+   * Verifies graceful handling of operations on empty threads
+   * 空のスレッドでの操作の適切な処理を確認
+   */
+  it('should handle empty thread gracefully', async () => {
+    const emptySession = new Thread({
+      title: 'Empty Thread Test'
+    });
+
+    // Broadcast to empty thread should return empty map
+    // 空のスレッドへのブロードキャストは空のマップを返すべき
+    const responses = await emptySession.broadcast('Hello?');
+    expect(responses.size).toBe(0);
+
+    // SendTo non-existent client should return null
+    // 存在しないクライアントへの送信はnullを返すべき
+    const response = await emptySession.sendTo('nobody', 'Hello?');
+    expect(response).toBeNull();
+  });
+
+  /**
+   * Test: Message history management
+   * テスト: メッセージ履歴管理
+   * Verifies proper tracking of conversation history
+   * 会話履歴の適切な追跡を確認
+   */
+  it('should maintain accurate message history', async () => {
+    const client = new LLMClient({
+      provider: 'openai',
+      apiKey: 'test-key',
+      model: 'gpt-3.5-turbo'
+    });
+
+    session.addAssistant(client, 'assistant');
+
+    // Send multiple messages
+    // 複数のメッセージを送信
+    await session.sendTo('assistant', 'First message');
+    await session.sendTo('assistant', 'Second message');
+    await session.sendTo('assistant', 'Third message');
+
+    const conversation = session.getConversation();
+    expect(conversation.messages.length).toBe(6); // 3 user + 3 assistant
+    expect(conversation.metadata?.message_count).toBe(6);
+
+    // Clear messages
+    // メッセージをクリア
+    session.clearMessages();
+    const clearedConversation = session.getConversation();
+    expect(clearedConversation.messages.length).toBe(0);
   });
 });
