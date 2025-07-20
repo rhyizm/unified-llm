@@ -11,6 +11,7 @@ import {
 } from '../../types/unified-api';
 import BaseProvider from '../base-provider';
 import { validateChatRequest } from '../../utils/validation';
+import { ResponseFormat } from '../../response-format';
 
 // Anthropic実装
 export class AnthropicProvider extends BaseProvider {
@@ -258,7 +259,7 @@ export class AnthropicProvider extends BaseProvider {
     const systemMessage = request.messages.find(m => m.role === 'system');
     const otherMessages = request.messages.filter(m => m.role !== 'system');
     
-    const messages = await Promise.all(otherMessages.map(async msg => {
+    let messages = await Promise.all(otherMessages.map(async msg => {
       const content = this.normalizeContent(msg.content);
       
       const anthropicContent = await Promise.all(content.map(async c => {
@@ -334,6 +335,11 @@ export class AnthropicProvider extends BaseProvider {
         content: anthropicContent as any,
       };
     }));
+
+    // Handle response_format for Anthropic
+    if (request.generation_config?.response_format instanceof ResponseFormat) {
+      messages = request.generation_config.response_format.addRequestSuffix(messages);
+    }
 
     // toolsの結合: request.toolsとcustomFunctionsを統合
     const tools = [

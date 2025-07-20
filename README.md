@@ -9,6 +9,7 @@ A unified interface for interacting with multiple Large Language Models (LLMs) i
 
 - 🤖 **Multi-Provider Support** - OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Azure OpenAI
 - 🔧 **Function Calling** - Execute local functions and integrate external tools
+- 📊 **Structured Output** - Guaranteed JSON schema compliance across all providers
 - 💬 **Conversation Persistence** - SQLite-based chat history and thread management
 
 ## Installation
@@ -214,6 +215,208 @@ for await (const chunk of stream) {
   }
 }
 ```
+
+## Structured Output
+
+Structured Output ensures that AI responses follow a specific JSON schema format across all supported providers. This is particularly useful for applications that need to parse and process AI responses programmatically.
+
+### Basic Structured Output
+
+```typescript
+import { LLMClient, ResponseFormat } from '@unified-llm/core';
+
+// Define the expected response structure
+const weatherFormat = new ResponseFormat({
+  name: 'weather_info',
+  description: 'Weather information for a location',
+  schema: {
+    type: 'object',
+    properties: {
+      location: { type: 'string' },
+      temperature: { type: 'number' },
+      condition: { type: 'string' },
+      humidity: { type: 'number' }
+    },
+    required: ['location', 'temperature', 'condition']
+  }
+});
+
+const client = new LLMClient({
+  provider: 'openai',
+  model: 'gpt-4o-2024-08-06', // Structured output requires specific models
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+const response = await client.chat({
+  messages: [{
+    role: 'user',
+    content: 'What is the weather like in Tokyo today?'
+  }],
+  generation_config: {
+    response_format: weatherFormat
+  }
+});
+
+// Response will be guaranteed to follow the schema
+console.log(JSON.parse(response.message.content[0].text));
+// Output: { "location": "Tokyo", "temperature": 25, "condition": "Sunny", "humidity": 60 }
+```
+
+### Multi-Provider Structured Output
+
+The same `ResponseFormat` works across all providers with automatic conversion:
+
+```typescript
+// Works with OpenAI (uses json_schema format internally)
+const openaiClient = new LLMClient({
+  provider: 'openai',
+  model: 'gpt-4o-2024-08-06',
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// Works with Google Gemini (uses responseSchema format internally)
+const geminiClient = new LLMClient({
+  provider: 'google',
+  model: 'gemini-1.5-pro',
+  apiKey: process.env.GOOGLE_API_KEY
+});
+
+// Works with Anthropic (uses prompt engineering internally)
+const claudeClient = new LLMClient({
+  provider: 'anthropic',
+  model: 'claude-3-5-sonnet-latest',
+  apiKey: process.env.ANTHROPIC_API_KEY
+});
+
+const userInfoFormat = new ResponseFormat({
+  name: 'user_profile',
+  schema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string' },
+      age: { type: 'number' },
+      email: { type: 'string' },
+      interests: {
+        type: 'array',
+        items: { type: 'string' }
+      }
+    },
+    required: ['name', 'age', 'email']
+  }
+});
+
+const request = {
+  messages: [{ role: 'user', content: 'Create a sample user profile' }],
+  generation_config: { response_format: userInfoFormat }
+};
+
+// All three will return structured JSON in the same format
+const openaiResponse = await openaiClient.chat(request);
+const geminiResponse = await geminiClient.chat(request);
+const claudeResponse = await claudeClient.chat(request);
+```
+
+### Pre-built Response Format Templates
+
+The library provides convenient templates for common structured output patterns:
+
+```typescript
+import { ResponseFormats } from '@unified-llm/core';
+
+// Key-value extraction
+const contactFormat = ResponseFormats.keyValue(['name', 'email', 'phone']);
+
+const contactResponse = await client.chat({
+  messages: [{
+    role: 'user',
+    content: 'Extract contact info: John Doe, john@example.com, 555-1234'
+  }],
+  generation_config: { response_format: contactFormat }
+});
+
+// Classification with confidence scores
+const sentimentFormat = ResponseFormats.classification(['positive', 'negative', 'neutral']);
+
+const sentimentResponse = await client.chat({
+  messages: [{
+    role: 'user',
+    content: 'Analyze sentiment: "I absolutely love this new feature!"'
+  }],
+  generation_config: { response_format: sentimentFormat }
+});
+// Returns: { "category": "positive", "confidence": 0.95 }
+
+// List responses
+const taskFormat = ResponseFormats.list({
+  type: 'object',
+  properties: {
+    task: { type: 'string' },
+    priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+    deadline: { type: 'string' }
+  }
+});
+
+const taskResponse = await client.chat({
+  messages: [{
+    role: 'user',
+    content: 'Create a task list for launching a mobile app'
+  }],
+  generation_config: { response_format: taskFormat }
+});
+// Returns: { "items": [{ "task": "Design UI", "priority": "high", "deadline": "2024-02-01" }, ...] }
+```
+
+### Complex Nested Schemas
+
+```typescript
+const productReviewFormat = new ResponseFormat({
+  name: 'product_review',
+  schema: {
+    type: 'object',
+    properties: {
+      rating: { type: 'number', minimum: 1, maximum: 5 },
+      summary: { type: 'string' },
+      pros: {
+        type: 'array',
+        items: { type: 'string' }
+      },
+      cons: {
+        type: 'array',
+        items: { type: 'string' }
+      },
+      recommendation: {
+        type: 'object',
+        properties: {
+          wouldRecommend: { type: 'boolean' },
+          targetAudience: { type: 'string' },
+          alternatives: {
+            type: 'array',
+            items: { type: 'string' }
+          }
+        }
+      }
+    },
+    required: ['rating', 'summary', 'pros', 'cons', 'recommendation']
+  }
+});
+
+const reviewResponse = await client.chat({
+  messages: [{
+    role: 'user',
+    content: 'Review this smartphone: iPhone 15 Pro - great camera, expensive, good battery life'
+  }],
+  generation_config: { response_format: productReviewFormat }
+});
+```
+
+### Provider-Specific Notes
+
+- **OpenAI**: Supports native structured outputs with `gpt-4o-2024-08-06` and newer models
+- **Google Gemini**: Uses `responseMimeType: 'application/json'` with `responseSchema`
+- **Anthropic**: Uses prompt engineering to request JSON format responses
+- **DeepSeek**: Similar to OpenAI, supports JSON mode
+
+The `ResponseFormat` class automatically handles the conversion to each provider's specific format, ensuring consistent behavior across all supported LLMs.
 
 ## Multi-Provider Example
 
@@ -465,11 +668,11 @@ UNIFIED_LLM_DB_PATH=./chat-history.db  # Optional custom DB path
 
 | Provider | Models | Features |
 |----------|---------|----------|
-| **OpenAI** | GPT-4o, GPT-4o-mini, GPT-4, GPT-3.5 | Function calling, streaming, vision, JSON mode |
-| **Anthropic** | Claude 3.5 (Sonnet), Claude 3 (Opus, Sonnet, Haiku) | Tool use, streaming, long context |
-| **Google** | Gemini 2.0 Flash, Gemini 1.5 Pro/Flash | Function calling, multimodal, system instructions |
-| **DeepSeek** | DeepSeek-Chat, DeepSeek-Coder | Function calling, streaming, code generation |
-| **Azure OpenAI** | GPT-4o, GPT-4, GPT-3.5 (via Azure deployments) | Function calling, streaming, API key & AAD auth |
+| **OpenAI** | GPT-4o, GPT-4o-mini, GPT-4, GPT-3.5 | Function calling, streaming, vision, structured output |
+| **Anthropic** | Claude 3.5 (Sonnet), Claude 3 (Opus, Sonnet, Haiku) | Tool use, streaming, long context, structured output |
+| **Google** | Gemini 2.0 Flash, Gemini 1.5 Pro/Flash | Function calling, multimodal, structured output |
+| **DeepSeek** | DeepSeek-Chat, DeepSeek-Coder | Function calling, streaming, code generation, structured output |
+| **Azure OpenAI** | GPT-4o, GPT-4, GPT-3.5 (via Azure deployments) | Function calling, streaming, structured output |
 
 ## API Methods
 

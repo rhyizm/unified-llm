@@ -18,6 +18,7 @@ import {
 } from '../../types/unified-api';
 import BaseProvider from '../base-provider';
 import { validateChatRequest } from '../../utils/validation';
+import { ResponseFormat } from '../../response-format';
 
 
 // type ChatHistory = { role: 'user' | 'assistant'; content: string }[];
@@ -471,13 +472,75 @@ export class GeminiProvider extends BaseProvider {
   private convertGenerationConfig(config?: GenerationConfig): any {
     if (!config) return undefined;
     
-    return {
+    const result: any = {
       temperature: config.temperature,
       topP: config.top_p,
       topK: config.top_k,
       maxOutputTokens: config.max_tokens,
       stopSequences: config.stop_sequences,
     };
+    
+    // Handle response format
+    if (config.response_format) {
+      // If it's a ResponseFormat instance, use its toGoogle method
+      if (config.response_format instanceof ResponseFormat) {
+        const googleFormat = config.response_format.toGoogle();
+        result.responseMimeType = googleFormat.responseMimeType;
+        result.responseSchema = googleFormat.responseSchema;
+      }
+      // Handle legacy format
+      else if (config.response_format.type === 'json_object') {
+        result.responseMimeType = 'application/json';
+        
+        if (config.response_format.schema) {
+          result.responseSchema = this.convertToGoogleSchema(config.response_format.schema);
+        }
+      }
+    }
+    
+    return result;
+  }
+  
+  private convertToGoogleSchema(schema: any): any {
+    const converted: any = {
+      type: this.mapToGoogleType(schema.type)
+    };
+
+    if (schema.description) {
+      converted.description = schema.description;
+    }
+
+    if (schema.type === 'object' && schema.properties) {
+      converted.properties = {};
+      for (const [key, value] of Object.entries(schema.properties)) {
+        converted.properties[key] = this.convertToGoogleSchema(value);
+      }
+      if (schema.required) {
+        converted.required = schema.required;
+      }
+    }
+
+    if (schema.type === 'array' && schema.items) {
+      converted.items = this.convertToGoogleSchema(schema.items);
+    }
+
+    if (schema.enum) {
+      converted.enum = schema.enum;
+    }
+
+    return converted;
+  }
+
+  private mapToGoogleType(type: string): string {
+    const typeMap: Record<string, string> = {
+      'object': 'OBJECT',
+      'array': 'ARRAY',
+      'string': 'STRING',
+      'number': 'NUMBER',
+      'boolean': 'BOOLEAN',
+      'null': 'NULL'
+    };
+    return typeMap[type] || 'STRING';
   }
   
   private convertFromGeminiFormat(response: any, _result: any): UnifiedChatResponse {

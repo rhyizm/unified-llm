@@ -1,3 +1,5 @@
+import { ResponseFormat } from '../response-format';
+
 export type MessageRole = 'system' | 'user' | 'assistant' | 'tool' | 'function' | 'developer';
 
 export type ContentType = 'text' | 'image' | 'audio' | 'video' | 'file' | 'tool_use' | 'tool_result';
@@ -122,7 +124,7 @@ export interface GenerationConfig {
   response_format?: {
     type: 'text' | 'json_object';
     schema?: Record<string, unknown>;
-  };
+  } | ResponseFormat;
 }
 
 export interface UsageStats {

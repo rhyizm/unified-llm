@@ -10,6 +10,7 @@ import {
 } from '../../types/unified-api';
 import { validateChatRequest } from '../../utils/validation';
 import BaseProvider from '../base-provider';
+import { ResponseFormat } from '../../response-format';
 
 export class OpenAIProvider extends BaseProvider {
   protected client: OpenAI;
@@ -447,8 +448,33 @@ export class OpenAIProvider extends BaseProvider {
         })) || []),
       ] : undefined,
       tool_choice: request.tool_choice as any,
-      response_format: request.generation_config?.response_format,
+      response_format: this.convertResponseFormat(request.generation_config?.response_format),
     };
+  }
+  
+  private convertResponseFormat(responseFormat: any): any {
+    if (!responseFormat) return undefined;
+    
+    // If it's a ResponseFormat instance, use its toOpenAI method
+    if (responseFormat instanceof ResponseFormat) {
+      return responseFormat.toOpenAI();
+    }
+    
+    // Handle legacy format for backward compatibility
+    if (responseFormat.type === 'json_object' && responseFormat.schema) {
+      // Convert to new structured output format
+      return {
+        type: 'json_schema',
+        json_schema: {
+          name: 'response',
+          schema: responseFormat.schema,
+          strict: true
+        }
+      };
+    }
+    
+    // Return as-is for other formats
+    return responseFormat;
   }
   
   private convertToResponsesAPIFormat(request: UnifiedChatRequest): any {
