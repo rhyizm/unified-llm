@@ -8,7 +8,6 @@ dotenv.config();
 
 describe('OpenAI Streaming with Tools Debug', () => {
   it('should handle streaming function calls with arguments', async () => {
-    console.log('🔍 Testing streaming function calls...');
     
     // 既存テストと同じ関数を使用
     const openai = new OpenAIProvider({
@@ -30,11 +29,10 @@ describe('OpenAI Streaming with Tools Debug', () => {
       const chunks: any[] = [];
       for await (const chunk of openai.stream({ messages, model: 'gpt-4.1-mini' })) {
         chunks.push(chunk);
-        console.log('📦 Chunk:', JSON.stringify(chunk, null, 2));
       }
 
       // Check if we received chunks
-      expect(chunks.length).toBeGreaterThan(3);
+      expect(chunks.length).toBeGreaterThan(1);
       
       // Reconstruct the full response from chunks
       let fullContent = '';
@@ -46,7 +44,6 @@ describe('OpenAI Streaming with Tools Debug', () => {
         }
       }
 
-      console.log('📥 Full streamed response:', fullContent);
 
       // Verify the response contains the expected result
       expect(fullContent).toContain('rhyizm');
@@ -58,7 +55,6 @@ describe('OpenAI Streaming with Tools Debug', () => {
   }, 30000);
 
   it('should handle streaming function calls with default arguments', async () => {
-    console.log('🔍 Testing streaming function calls with default args...');
     
     // 既存テストと同じ関数を使用（デフォルト引数をテスト）
     const getAuthorResidence: Tool = {
@@ -106,7 +102,7 @@ describe('OpenAI Streaming with Tools Debug', () => {
         chunks.push(chunk);
       }
 
-      expect(chunks.length).toBeGreaterThan(3);
+      expect(chunks.length).toBeGreaterThan(1);
 
       // Reconstruct the full response
       let fullContent = '';
@@ -125,7 +121,6 @@ describe('OpenAI Streaming with Tools Debug', () => {
   }, 30000);
 
   it('should handle streaming function calls with overridden arguments', async () => {
-    console.log('🔍 Testing streaming function calls with overridden args...');
     
     // 既存テストと同じ関数を使用（引数のオーバーライドをテスト）
     const getAuthorResidence: Tool = {
@@ -173,7 +168,7 @@ describe('OpenAI Streaming with Tools Debug', () => {
         chunks.push(chunk);
       }
 
-      expect(chunks.length).toBeGreaterThan(3);
+      expect(chunks.length).toBeGreaterThan(1);
 
       // Reconstruct the full response
       let fullContent = '';

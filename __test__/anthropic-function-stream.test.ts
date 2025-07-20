@@ -8,7 +8,6 @@ dotenv.config();
 
 describe('Anthropic Streaming Function Calls', () => {
   it('should handle streaming without function calls', async () => {
-    console.log('🔍 Testing streaming without function calls...');
     
     const anthropic = new AnthropicProvider({
       apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -33,7 +32,6 @@ describe('Anthropic Streaming Function Calls', () => {
         chunks.push(chunk);
         if (Array.isArray(chunk.message.content) && chunk.message.content[0]?.type === 'text') {
           fullContent += chunk.message.content[0].text;
-          console.log('📦 Chunk received (text):', chunk.message.content[0].text);
         }
       }
 
@@ -47,7 +45,6 @@ describe('Anthropic Streaming Function Calls', () => {
   }, 30000);
 
   it('should handle streaming function calls with arguments', async () => {
-    console.log('🔍 Testing streaming function calls...');
     
     const anthropic = new AnthropicProvider({
       apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -71,7 +68,6 @@ describe('Anthropic Streaming Function Calls', () => {
       
       for await (const chunk of anthropic.stream({ messages, model: 'claude-3-5-haiku-latest' })) {
         chunks.push(chunk);
-        // console.log('📦 Chunk type:', chunk.type || 'streaming', 'Content:', JSON.stringify(chunk.message.content, null, 2));
         if (Array.isArray(chunk.message.content) && chunk.message.content[0]?.type === 'text') {
           fullContent += chunk.message.content[0].text;
         }
@@ -79,10 +75,6 @@ describe('Anthropic Streaming Function Calls', () => {
           toolCalls.push(chunk.message.content[0]);
         }
       }
-
-      console.log('📥 Full streamed response:', fullContent);
-      console.log('🔧 Tool calls:', JSON.stringify(toolCalls, null, 2));
-      console.log('📊 Total chunks received:', chunks.length);
 
       expect(chunks.length).toBeGreaterThan(1);
       expect(fullContent).toContain('rhyizm');
@@ -94,7 +86,6 @@ describe('Anthropic Streaming Function Calls', () => {
   }, 30000);
 
   it('should handle streaming function calls with default arguments', async () => {
-    console.log('🔍 Testing streaming function calls with default args...');
     
     // Custom function with default arguments
     const getAuthorResidence: Tool = {
@@ -147,9 +138,6 @@ describe('Anthropic Streaming Function Calls', () => {
         }
       }
 
-      console.log('📥 Full streamed response with defaults:', fullContent);
-      console.log('📊 Total chunks received:', chunks.length);
-      
       expect(chunks.length).toBeGreaterThan(3);
       expect(fullContent).toContain('Tokyo');
 
@@ -160,7 +148,6 @@ describe('Anthropic Streaming Function Calls', () => {
   }, 30000);
 
   it('should handle streaming function calls with overridden arguments', async () => {
-    console.log('🔍 Testing streaming function calls with overridden args...');
     
     const getAuthorResidence: Tool = {
       type: 'function',
@@ -211,9 +198,6 @@ describe('Anthropic Streaming Function Calls', () => {
           fullContent += chunk.message.content[0].text;
         }
       }
-
-      console.log('📥 Full streamed response with overridden args:', fullContent);
-      console.log('📊 Total chunks received:', chunks.length);
       
       expect(chunks.length).toBeGreaterThan(3);
       expect(fullContent).toContain('Osaka');

@@ -8,7 +8,6 @@ dotenv.config();
 
 describe('Gemini Streaming Function Calls', () => {
   it('should handle streaming without function calls', async () => {
-    console.log('🔍 Testing streaming without function calls...');
     
     const gemini = new GeminiProvider({
       apiKey: process.env.GEMINI_API_KEY!,
@@ -33,12 +32,9 @@ describe('Gemini Streaming Function Calls', () => {
         chunks.push(chunk);
         if (Array.isArray(chunk.message.content) && chunk.message.content[0]?.type === 'text') {
           fullContent += chunk.message.content[0].text;
-          console.log('📦 Chunk received (text):', chunk.message.content[0].text);
         }
       }
 
-      console.log('📥 Full streamed response:', fullContent);
-      console.log('📊 Total chunks received:', chunks.length);
 
       // Verify we received chunks and the response contains expected content
       expect(chunks.length).toBeGreaterThan(1);
@@ -51,7 +47,6 @@ describe('Gemini Streaming Function Calls', () => {
   }, 100000);
 
   it('should handle streaming function calls with arguments', async () => {
-    console.log('🔍 Testing streaming function calls...');
     
     const gemini = new GeminiProvider({
       apiKey: process.env.GEMINI_API_KEY!,
@@ -83,9 +78,6 @@ describe('Gemini Streaming Function Calls', () => {
         }
       }
 
-      console.log('📥 Full streamed response:', fullContent);
-      console.log('🔧 Tool calls:', JSON.stringify(toolCalls, null, 2));
-      console.log('📊 Total chunks received:', chunks.length);
 
       // Verify the response contains the expected result
       expect(chunks.length).toBeGreaterThan(1);
@@ -98,7 +90,6 @@ describe('Gemini Streaming Function Calls', () => {
   }, 100000);
 
   it('should handle streaming function calls with default arguments', async () => {
-    console.log('🔍 Testing streaming function calls with default args...');
     
     // Custom function with default arguments
     const getAuthorResidence: Tool = {
@@ -151,8 +142,6 @@ describe('Gemini Streaming Function Calls', () => {
         }
       }
 
-      console.log('📥 Full streamed response with defaults:', fullContent);
-      console.log('📊 Total chunks received:', chunks.length);
       
       expect(chunks.length).toBeGreaterThan(1);
       expect(fullContent).toContain('Tokyo');
@@ -164,7 +153,6 @@ describe('Gemini Streaming Function Calls', () => {
   }, 100000);
 
   it('should handle streaming function calls with overridden arguments', async () => {
-    console.log('🔍 Testing streaming function calls with overridden args...');
     
     const getAuthorResidence: Tool = {
       type: 'function',
@@ -216,8 +204,6 @@ describe('Gemini Streaming Function Calls', () => {
         }
       }
 
-      console.log('📥 Full streamed response with overridden args:', fullContent);
-      console.log('📊 Total chunks received:', chunks.length);
       
       expect(chunks.length).toBeGreaterThan(1);
       expect(fullContent).toContain('Osaka');

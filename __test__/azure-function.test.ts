@@ -17,8 +17,6 @@ const azureAuth = {
 describe('Azure OpenAI Tools Debug', () => {
 
   it('should debug if tools are being sent to Azure OpenAI API', async () => {
-    console.log('🔍 Debugging Azure tool sending...');
-
     const openai = new AzureOpenAIProvider(
       azureAuth,
       {
@@ -37,13 +35,10 @@ describe('Azure OpenAI Tools Debug', () => {
     const resp = await openai.chat({ messages });
 
     const json = JSON.stringify(resp.message.content);
-    console.log('📥 Response:\n', json);
     expect(json).toContain('rhyizm');
   }, 30000);
 
   it('should use default args when not provided', async () => {
-    console.log('🔍 Testing default args...');
-
     const getAuthorResidence: Tool = {
       type: 'function',
       function: {
@@ -76,13 +71,10 @@ describe('Azure OpenAI Tools Debug', () => {
 
     const resp = await openai.chat({ messages });
     const json = JSON.stringify(resp.message.content);
-    console.log('📥 Response:\n', json);
     expect(json).toContain('Tokyo');
   }, 30000);
 
   it('should override default args when provided', async () => {
-    console.log('🔍 Testing args override...');
-
     const getAuthorResidence: Tool = {
       type: 'function',
       function: {
@@ -115,7 +107,6 @@ describe('Azure OpenAI Tools Debug', () => {
 
     const resp = await openai.chat({ messages });
     const json = JSON.stringify(resp.message.content);
-    console.log('📥 Response:\n', json);
     expect(json).toContain('Osaka');
   }, 30000);
 });

@@ -8,7 +8,6 @@ dotenv.config();
 
 describe('Gemini Tools Debug', () => {
   it('should debug if tools are being sent to Gemini API', async () => {
-    console.log('🔍 Debugging Gemini tool sending...');
     
     // Use the base Gemini assistant directly
     const gemini = new GeminiProvider({
@@ -33,9 +32,6 @@ describe('Gemini Tools Debug', () => {
 
       const contentString = JSON.stringify(response.message.content);
 
-      console.log('📥 Response with default args:');
-      console.log(JSON.stringify(contentString, null, 2));
-
       expect(contentString).toContain('rhyizm');
 
     } catch (error) {
@@ -46,7 +42,6 @@ describe('Gemini Tools Debug', () => {
   }, 30000);
 
   it('should use default args when not provided', async () => {
-    console.log('🔍 Testing default args...');
     
     // カスタム関数：デフォルト引数付き
     const getAuthorResidence: Tool = {
@@ -91,9 +86,6 @@ describe('Gemini Tools Debug', () => {
 
       const contentString = JSON.stringify(response.message.content);
 
-      console.log('📥 Response with default args:');
-      console.log(JSON.stringify(contentString, null, 2));
-
       expect(JSON.stringify(contentString)).toContain('Tokyo');
 
     } catch (error) {
@@ -103,7 +95,6 @@ describe('Gemini Tools Debug', () => {
   }, 30000);
 
   it('should override default args when provided', async () => {
-    console.log('🔍 Testing args override...');
     
     // 同じ関数でデフォルト引数を上書き
     const getAuthorResidence: Tool = {
@@ -152,9 +143,6 @@ describe('Gemini Tools Debug', () => {
       });
 
       const contentString = JSON.stringify(response.message.content);
-
-      console.log('📥 Response with default args:');
-      console.log(JSON.stringify(contentString, null, 2));
 
       expect(contentString).toContain('Osaka');
 
