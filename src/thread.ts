@@ -48,7 +48,10 @@ export class Thread {
     this.messages.push({
       id: `msg_${uuidv4()}`,
       role: 'user',
-      content: message,
+      content: [{
+        type: 'text',
+        text: message
+      }],
       created_at: new Date(),
       metadata: {
         timestamp: new Date(),
@@ -94,7 +97,10 @@ export class Thread {
     this.messages.push({
       id: `msg_${uuidv4()}`,
       role: 'user',
-      content: message,
+      content: [{
+        type: 'text',
+        text: message
+      }],
       created_at: new Date(),
       metadata: {
         timestamp: new Date(),
