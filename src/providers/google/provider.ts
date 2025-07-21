@@ -623,11 +623,16 @@ export class GeminiProvider extends BaseProvider {
       total_tokens: response.usageMetadata.totalTokenCount || 0,
     } : undefined;
     
+    // Extract text for convenience field
+    const contentArray = Array.isArray(unifiedMessage.content) ? unifiedMessage.content : [{ type: 'text', text: unifiedMessage.content }];
+    const textContent = contentArray.find((c: any) => c.type === 'text');
+    
     return {
       id: this.generateMessageId(),
       model: this.model,
       provider: 'google',
       message: unifiedMessage,
+      text: (textContent as any)?.text || '',
       usage,
       finish_reason: this.mapFinishReason(response.candidates?.[0]?.finishReason),
       created_at: new Date(),
@@ -650,11 +655,16 @@ export class GeminiProvider extends BaseProvider {
       created_at: new Date(),
     };
     
+    // Extract text for convenience field
+    const contentArray = Array.isArray(unifiedMessage.content) ? unifiedMessage.content : [{ type: 'text', text: unifiedMessage.content }];
+    const textContent = contentArray.find((c: any) => c.type === 'text');
+    
     return {
       id: this.generateMessageId(),
       model: this.model,
       provider: 'google',
       message: unifiedMessage,
+      text: (textContent as any)?.text || '',
       created_at: new Date(),
       raw_response: chunk,
     };

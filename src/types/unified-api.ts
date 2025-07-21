@@ -246,6 +246,7 @@ export interface UnifiedChatResponse {
   model: string;
   provider: 'openai' | 'anthropic' | 'google' | 'azure' | 'deepseek';
   message: Message;
+  text: string;
   usage?: UsageStats;
   finish_reason?: 'stop' | 'length' | 'tool_calls' | 'content_filter' | null;
   created_at: Date;

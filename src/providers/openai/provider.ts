@@ -593,11 +593,16 @@ export class OpenAIProvider extends BaseProvider {
       total_tokens: response.usage.total_tokens,
     } : undefined;
     
+    // Extract text for convenience field
+    const contentArray = Array.isArray(unifiedMessage.content) ? unifiedMessage.content : [{ type: 'text', text: unifiedMessage.content }];
+    const textContent = contentArray.find((c: any) => c.type === 'text');
+    
     return {
       id: response.id,
       model: response.model,
       provider: 'openai',
       message: unifiedMessage,
+      text: (textContent as any)?.text || '',
       usage,
       finish_reason: choice.finish_reason as any,
       created_at: new Date(response.created * 1000),
@@ -646,11 +651,16 @@ export class OpenAIProvider extends BaseProvider {
       total_tokens: response.usage.total_tokens,
     } : undefined;
     
+    // Extract text for convenience field
+    const contentArray = Array.isArray(unifiedMessage.content) ? unifiedMessage.content : [{ type: 'text', text: unifiedMessage.content }];
+    const textContent = contentArray.find((c: any) => c.type === 'text');
+    
     return {
       id: response.id,
       model: response.model,
       provider: 'openai',
       message: unifiedMessage,
+      text: (textContent as any)?.text || '',
       usage,
       finish_reason: outputMessage.status === 'completed' ? 'stop' : undefined,
       created_at: new Date(response.created_at * 1000),
@@ -689,11 +699,16 @@ export class OpenAIProvider extends BaseProvider {
       created_at: new Date(),
     };
     
+    // Extract text for convenience field
+    const contentArray = Array.isArray(unifiedMessage.content) ? unifiedMessage.content : [{ type: 'text', text: unifiedMessage.content }];
+    const textContent = contentArray.find((c: any) => c.type === 'text');
+    
     return {
       id: chunk.id,
       model: chunk.model,
       provider: 'openai',
       message: unifiedMessage,
+      text: (textContent as any)?.text || '',
       finish_reason: choice.finish_reason as any,
       created_at: new Date(chunk.created * 1000),
       raw_response: chunk,
@@ -715,11 +730,16 @@ export class OpenAIProvider extends BaseProvider {
       created_at: new Date(),
     };
     
+    // Extract text for convenience field
+    const contentArray = Array.isArray(unifiedMessage.content) ? unifiedMessage.content : [{ type: 'text', text: unifiedMessage.content }];
+    const textContent = contentArray.find((c: any) => c.type === 'text');
+    
     return {
       id: chunk.id,
       model: chunk.model,
       provider: 'openai',
       message: unifiedMessage,
+      text: (textContent as any)?.text || '',
       finish_reason: chunk.status === 'completed' ? 'stop' : undefined,
       created_at: new Date(chunk.created_at || Date.now()),
       raw_response: chunk,

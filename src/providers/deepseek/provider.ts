@@ -313,11 +313,16 @@ export class DeepSeekProvider extends BaseProvider {
       total_tokens: response.usage.total_tokens,
     } : undefined;
     
+    // Extract text for convenience field
+    const contentArray = Array.isArray(unifiedMessage.content) ? unifiedMessage.content : [{ type: 'text', text: unifiedMessage.content }];
+    const textContent = contentArray.find((c: any) => c.type === 'text');
+    
     return {
       id: response.id,
       model: response.model,
       provider: 'deepseek' as const,
       message: unifiedMessage,
+      text: (textContent as any)?.text || '',
       usage,
       finish_reason: choice.finish_reason as any,
       created_at: new Date(response.created * 1000),
@@ -342,11 +347,16 @@ export class DeepSeekProvider extends BaseProvider {
       created_at: new Date(),
     };
     
+    // Extract text for convenience field
+    const contentArray = Array.isArray(unifiedMessage.content) ? unifiedMessage.content : [{ type: 'text', text: unifiedMessage.content }];
+    const textContent = contentArray.find((c: any) => c.type === 'text');
+    
     return {
       id: chunk.id,
       model: chunk.model,
       provider: 'deepseek' as const,
       message: unifiedMessage,
+      text: (textContent as any)?.text || '',
       finish_reason: choice.finish_reason as any,
       created_at: new Date(chunk.created * 1000),
       raw_response: chunk,
