@@ -20,7 +20,7 @@ describe('Anthropic Streaming Function Calls', () => {
         id: 'test-stream-1',
         role: 'user' as const,
         content: 'What is the capital of France?',
-        created_at: new Date(),
+        createdAt: new Date(),
       }
     ];
 
@@ -57,7 +57,7 @@ describe('Anthropic Streaming Function Calls', () => {
         id: 'test-stream-2',
         role: 'user' as const,
         content: 'Who is the author of this project?',
-        created_at: new Date(),
+        createdAt: new Date(),
       }
     ];
 
@@ -123,7 +123,7 @@ describe('Anthropic Streaming Function Calls', () => {
         id: 'test-stream-3',
         role: 'user' as const,
         content: 'Call the getAuthorResidence function without providing any parameters to use the default city',
-        created_at: new Date(),
+        createdAt: new Date(),
       }
     ];
 
@@ -184,7 +184,7 @@ describe('Anthropic Streaming Function Calls', () => {
         id: 'test-stream-4',
         role: 'user' as const,
         content: 'Call getAuthorResidence with city "Osaka"',
-        created_at: new Date(),
+        createdAt: new Date(),
       }
     ];
 

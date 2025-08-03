@@ -10,11 +10,11 @@ export interface ImageContent {
   type: 'image';
   source: {
     type: ImageSourceType;
-    media_type?: string;
+    mediaType?: string;
     data?: string;
     url?: string;
   };
-  alt_text?: string;
+  altText?: string;
 }
 
 export interface TextContent {
@@ -24,13 +24,13 @@ export interface TextContent {
 
 export interface FileContent {
   type: 'file';
-  file_type: string;
+  fileType: string;
   name?: string;
   source: {
     type: 'base64' | 'url' | 'file_id';
     data?: string;
     url?: string;
-    file_id?: string;
+    fileId?: string;
   };
 }
 
@@ -43,8 +43,8 @@ export interface ToolUseContent {
 
 export interface ToolResultContent {
   type: 'tool_result';
-  tool_use_id: string;
-  is_error?: boolean;
+  toolUseId: string;
+  isError?: boolean;
   content?: Array<TextContent | ImageContent>;
 }
 
@@ -52,7 +52,7 @@ export interface AudioContent {
   type: 'audio';
   source: {
     type: 'base64' | 'url';
-    media_type?: string;
+    mediaType?: string;
     data?: string;
     url?: string;
   };
@@ -63,7 +63,7 @@ export interface VideoContent {
   type: 'video';
   source: {
     type: 'base64' | 'url';
-    media_type?: string;
+    mediaType?: string;
     data?: string;
     url?: string;
   };
@@ -84,7 +84,7 @@ export interface Message {
   role: MessageRole;
   content: MessageContent[] | string;
   name?: string;
-  created_at: Date;
+  createdAt: Date;
   metadata?: Record<string, unknown>;
 }
 
@@ -118,22 +118,22 @@ export interface GenerationConfig {
   top_p?: number;
   top_k?: number;
   max_tokens?: number;
-  stop_sequences?: string[];
-  frequency_penalty?: number;
-  presence_penalty?: number;
-  response_format?: {
+  stopSequences?: string[];
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  responseFormat?: {
     type: 'text' | 'json_object';
     schema?: Record<string, unknown>;
   } | ResponseFormat;
 }
 
 export interface UsageStats {
-  input_tokens: number;
-  output_tokens: number;
-  total_tokens: number;
-  cache_creation_input_tokens?: number;
-  cache_read_input_tokens?: number;
-  reasoning_tokens?: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cacheCreationInputTokens?: number;
+  cacheReadInputTokens?: number;
+  reasoningTokens?: number;
 }
 
 export interface ChatCompletionResponse {
@@ -144,29 +144,29 @@ export interface ChatCompletionResponse {
   choices: Array<{
     index: number;
     message: Message;
-    finish_reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | null;
+    finishReason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | null;
     logprobs?: unknown;
   }>;
   usage?: UsageStats;
-  system_fingerprint?: string;
+  systemFingerprint?: string;
 }
 
 export interface ConversationThread {
   id: string;
   title?: string;
   messages: Message[];
-  created_at: Date;
-  updated_at: Date;
+  createdAt: Date;
+  updatedAt: Date;
   metadata?: Record<string, unknown>;
   config?: ConversationConfig;
 }
 
 export interface ConversationConfig {
   model: string;
-  system_prompt?: string;
+  systemPrompt?: string;
   tools?: ToolDefinition[];
-  generation_config?: GenerationConfig;
-  safety_settings?: SafetySetting[];
+  generationConfig?: GenerationConfig;
+  safetySettings?: SafetySetting[];
 }
 
 export interface SafetySetting {
@@ -178,19 +178,19 @@ export interface ProviderSpecificConfig {
   provider: 'openai' | 'anthropic' | 'google' | 'azure' | 'deepseek';
   openai?: {
     organization?: string;
-    response_format?: { type: 'json_object' };
-    tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
+    responseFormat?: { type: 'json_object' };
+    toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
   };
   anthropic?: {
-    anthropic_version?: string;
-    metadata?: { user_id?: string };
-    thinking_budget?: number;
+    anthropicVersion?: string;
+    metadata?: { userId?: string };
+    thinkingBudget?: number;
   };
   google?: {
-    safety_settings?: SafetySetting[];
+    safetySettings?: SafetySetting[];
     generation_config?: {
-      candidate_count?: number;
-      stop_sequences?: string[];
+      candidateCount?: number;
+      stopSequences?: string[];
     };
   };
 }
@@ -205,7 +205,7 @@ export interface StreamChunk {
     delta: {
       role?: MessageRole;
       content?: string | MessageContent[];
-      tool_calls?: Array<{
+      toolCalls?: Array<{
         index: number;
         id?: string;
         type?: 'function';
@@ -225,8 +225,8 @@ export interface UnifiedChatRequest {
   stream?: boolean;
   tools?: ToolDefinition[];
   tool_choice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } };
-  generation_config?: GenerationConfig;
-  provider_config?: ProviderSpecificConfig;
+  generationConfig?: GenerationConfig;
+  providerConfig?: ProviderSpecificConfig;
 }
 
 export type ConvertToProviderFormat<T> = (request: UnifiedChatRequest) => T;
@@ -236,7 +236,7 @@ export interface UnifiedError {
   code: string;
   message: string;
   type: 'api_error' | 'rate_limit' | 'invalid_request' | 'authentication' | 'server_error';
-  status_code?: number;
+  statusCode?: number;
   provider?: string;
   details?: unknown;
 }
@@ -249,6 +249,6 @@ export interface UnifiedChatResponse {
   text: string;
   usage?: UsageStats;
   finish_reason?: 'stop' | 'length' | 'tool_calls' | 'content_filter' | null;
-  created_at: Date;
-  raw_response?: unknown;
+  createdAt: Date;
+  rawResponse?: unknown;
 }

@@ -29,7 +29,7 @@ describe('Azure OpenAI Tools Debug', () => {
       id: 'test-1',
       role: 'user' as const,
       content: 'Who is the author of this project?',
-      created_at: new Date(),
+      createdAt: new Date(),
     }];
 
     const resp = await openai.chat({ messages });
@@ -66,7 +66,7 @@ describe('Azure OpenAI Tools Debug', () => {
       id: 'test-2',
       role: 'user' as const,
       content: 'Call the getAuthorResidence function without any arguments to tell me where the author lives',
-      created_at: new Date(),
+      createdAt: new Date(),
     }];
 
     const resp = await openai.chat({ messages });
@@ -102,7 +102,7 @@ describe('Azure OpenAI Tools Debug', () => {
       id: 'test-3',
       role: 'user' as const,
       content: 'Call getAuthorResidence with city "Osaka"',
-      created_at: new Date(),
+      createdAt: new Date(),
     }];
 
     const resp = await openai.chat({ messages });

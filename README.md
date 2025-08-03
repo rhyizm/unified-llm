@@ -44,7 +44,7 @@ const gptResponse = await gpt.chat({
     id: '1',
     role: 'user',
     content: 'Hello, GPT!',
-    created_at: new Date()
+    createdAt: new Date()
   }]
 });
 
@@ -54,7 +54,7 @@ const claudeResponse = await claude.chat({
     id: '1',
     role: 'user',
     content: 'Hello, Claude!',
-    created_at: new Date()
+    createdAt: new Date()
   }]
 });
 
@@ -85,7 +85,7 @@ const stream = await client.stream({
       id: '1',
       role: 'user',
       content: 'What are some recommended tourist spots in Osaka?',
-      created_at: new Date()
+      createdAt: new Date()
     },
   ],
 });
@@ -153,7 +153,7 @@ const response = await client.chat({
   messages: [{
     role: 'user',
     content: "Read app.log and tell me what's wrong with my application",
-    created_at: new Date()
+    createdAt: new Date()
   }]
 });
 
@@ -199,7 +199,7 @@ const stream = await client.stream({
     id: '1',
     role: 'user',
     content: "What's the weather like in Tokyo?",
-    created_at: new Date()
+    createdAt: new Date()
   }]
 });
 
@@ -252,8 +252,8 @@ const response = await client.chat({
     role: 'user',
     content: 'What is the weather like in Tokyo today?'
   }],
-  generation_config: {
-    response_format: weatherFormat
+  generationConfig: {
+    responseFormat: weatherFormat
   }
 });
 
@@ -307,7 +307,7 @@ const userInfoFormat = new ResponseFormat({
 
 const request = {
   messages: [{ role: 'user', content: 'Create a sample user profile' }],
-  generation_config: { response_format: userInfoFormat }
+  generationConfig: { responseFormat: userInfoFormat }
 };
 
 // All three will return structured JSON in the same format
@@ -331,7 +331,7 @@ const contactResponse = await client.chat({
     role: 'user',
     content: 'Extract contact info: John Doe, john@example.com, 555-1234'
   }],
-  generation_config: { response_format: contactFormat }
+  generationConfig: { responseFormat: contactFormat }
 });
 
 // Classification with confidence scores
@@ -342,7 +342,7 @@ const sentimentResponse = await client.chat({
     role: 'user',
     content: 'Analyze sentiment: "I absolutely love this new feature!"'
   }],
-  generation_config: { response_format: sentimentFormat }
+  generationConfig: { responseFormat: sentimentFormat }
 });
 // Returns: { "category": "positive", "confidence": 0.95 }
 
@@ -361,7 +361,7 @@ const taskResponse = await client.chat({
     role: 'user',
     content: 'Create a task list for launching a mobile app'
   }],
-  generation_config: { response_format: taskFormat }
+  generationConfig: { responseFormat: taskFormat }
 });
 // Returns: { "items": [{ "task": "Design UI", "priority": "high", "deadline": "2024-02-01" }, ...] }
 ```
@@ -405,7 +405,7 @@ const reviewResponse = await client.chat({
     role: 'user',
     content: 'Review this smartphone: iPhone 15 Pro - great camera, expensive, good battery life'
   }],
-  generation_config: { response_format: productReviewFormat }
+  generationConfig: { responseFormat: productReviewFormat }
 });
 ```
 
@@ -458,7 +458,7 @@ const request = {
     id: '1',
     role: 'user',
     content: 'What are your thoughts on AI?',
-    created_at: new Date()
+    createdAt: new Date()
   }]
 };
 
@@ -494,7 +494,7 @@ for (const config of providers) {
       id: '1',
       role: 'user',
       content: 'Tell me a short story about AI.',
-      created_at: new Date()
+      createdAt: new Date()
     }]
   });
 
@@ -527,16 +527,16 @@ All providers return responses in a consistent format, making it easy to switch 
         text: "The author of this project is rhyizm."
       }
     ],
-    created_at: "2025-06-24T09:51:19.093Z"
+    createdAt: "2025-06-24T09:51:19.093Z"
   },
   usage: {
-    input_tokens: 72,
-    output_tokens: 10,
-    total_tokens: 82
+    inputTokens: 72,
+    outputTokens: 10,
+    totalTokens: 82
   },
-  finish_reason: "stop",
-  created_at: "2025-06-24T09:51:18.000Z",
-  raw_response: {
+  finishReason: "stop",
+  createdAt: "2025-06-24T09:51:18.000Z",
+  rawResponse: {
     /* Original response from the provider (as returned by OpenAI, Anthropic, Google, DeepSeek, etc.) */
   }
 }
@@ -560,16 +560,16 @@ Each streaming chunk follows the same unified format as regular responses:
         text: "Chunk of text..."
       }
     ],
-    created_at: "2025-01-01T00:00:00.000Z"
+    createdAt: "2025-01-01T00:00:00.000Z"
   },
   usage: {
-    input_tokens: 50,
-    output_tokens: 5,
-    total_tokens: 55
+    inputTokens: 50,
+    outputTokens: 5,
+    totalTokens: 55
   },
-  finish_reason: null, // "stop" on final chunk
-  created_at: "2025-01-01T00:00:00.000Z",
-  raw_response: {
+  finishReason: null, // "stop" on final chunk
+  createdAt: "2025-01-01T00:00:00.000Z",
+  rawResponse: {
     // Original response from the provider (as returned by OpenAI, Anthropic, Google, DeepSeek, etc.)
   }
 }
@@ -646,7 +646,7 @@ const response = await azureOpenAI.chat({
     id: '1',
     role: 'user',
     content: 'Hello from Azure!',
-    created_at: new Date()
+    createdAt: new Date()
   }]
 });
 ```

@@ -21,7 +21,7 @@ describe('OpenAI Streaming with Tools Debug', () => {
         id: 'test-stream-1',
         role: 'user' as const,
         content: 'Who is the author of this project?',
-        created_at: new Date(),
+        createdAt: new Date(),
       }
     ];
 
@@ -92,7 +92,7 @@ describe('OpenAI Streaming with Tools Debug', () => {
         id: 'test-stream-2',
         role: 'user' as const,
         content: 'Use the getAuthorResidence function to tell me where the author lives',
-        created_at: new Date(),
+        createdAt: new Date(),
       }
     ];
 
@@ -158,7 +158,7 @@ describe('OpenAI Streaming with Tools Debug', () => {
         id: 'test-stream-3',
         role: 'user' as const,
         content: 'Call getAuthorResidence with city "Osaka"',
-        created_at: new Date(),
+        createdAt: new Date(),
       }
     ];
 

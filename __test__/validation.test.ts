@@ -10,7 +10,7 @@ describe('Validation', () => {
             id: '1',
             role: 'user',
             content: 'Hello',
-            created_at: new Date(),
+            createdAt: new Date(),
           },
         ],
         model: 'test-model',
@@ -71,7 +71,7 @@ describe('Validation', () => {
         id: '1',
         role: 'user',
         content: 'Hello',
-        created_at: new Date(),
+        createdAt: new Date(),
       };
       expect(() => validateMessage(message, 0)).not.toThrow();
     });
@@ -87,7 +87,7 @@ describe('Validation', () => {
         id: '1',
         role: 'invalid',
         content: 'Hello',
-        created_at: new Date(),
+        createdAt: new Date(),
       } as any;
       expect(() => validateMessage(message, 0)).toThrow(
         'Message at index 0 has invalid role: invalid. Valid roles are: system, user, assistant, tool, function, developer'
@@ -98,7 +98,7 @@ describe('Validation', () => {
       const message = {
         id: '1',
         role: 'user',
-        created_at: new Date(),
+        createdAt: new Date(),
       } as any;
       expect(() => validateMessage(message, 0)).toThrow(
         'Message at index 0 must have content'
@@ -110,7 +110,7 @@ describe('Validation', () => {
         id: '1',
         role: 'user',
         content: '   ',
-        created_at: new Date(),
+        createdAt: new Date(),
       };
       expect(() => validateMessage(message, 0)).toThrow(
         'Message at index 0 cannot have empty content'
@@ -122,7 +122,7 @@ describe('Validation', () => {
         id: '1',
         role: 'user',
         content: [],
-        created_at: new Date(),
+        createdAt: new Date(),
       };
       expect(() => validateMessage(message, 0)).toThrow(
         'Message at index 0 cannot have empty content array'
@@ -134,7 +134,7 @@ describe('Validation', () => {
         id: '1',
         role: 'user',
         content: [{ type: 'text', text: 'Hello' }],
-        created_at: new Date(),
+        createdAt: new Date(),
       };
       expect(() => validateMessage(message, 0)).not.toThrow();
     });

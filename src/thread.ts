@@ -52,7 +52,7 @@ export class Thread {
         type: 'text',
         text: message
       }],
-      created_at: new Date(),
+      createdAt: new Date(),
       metadata: {
         timestamp: new Date(),
       }
@@ -69,10 +69,10 @@ export class Thread {
           id: response.id,
           role: 'assistant',
           content: response.message.content,
-          created_at: response.created_at,
+          createdAt: response.createdAt,
           metadata: {
             ...response.message.metadata,
-            client_name: name,
+            clientName: name,
           }
         });
       } catch (error) {
@@ -101,10 +101,10 @@ export class Thread {
         type: 'text',
         text: message
       }],
-      created_at: new Date(),
+      createdAt: new Date(),
       metadata: {
         timestamp: new Date(),
-        directed_to: clientName,
+        directedTo: clientName,
       }
     });
 
@@ -116,10 +116,10 @@ export class Thread {
         id: response.id,
         role: 'assistant',
         content: response.message.content,
-        created_at: response.created_at,
+        createdAt: response.createdAt,
         metadata: {
           ...response.message.metadata,
-          client_name: clientName,
+          clientName: clientName,
         }
       });
 
@@ -138,12 +138,12 @@ export class Thread {
       id: this.id,
       title: this.title,
       messages: this.messages,
-      created_at: new Date(),
-      updated_at: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
       metadata: {
         description: this.description,
-        client_count: this.clients.size,
-        message_count: this.messages.length,
+        clientCount: this.clients.size,
+        messageCount: this.messages.length,
       }
     };
   }

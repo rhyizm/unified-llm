@@ -14,12 +14,12 @@ export interface LLMClientRuntimeConfig {
   tools?: Tool[];
   generationConfig?: {
     temperature?: number;
-    max_tokens?: number;
-    top_p?: number;
-    frequency_penalty?: number;
-    presence_penalty?: number;
-    stop_sequences?: string[];
-    response_format?: any;
+    maxTokens?: number;
+    topP?: number;
+    frequencyPenalty?: number;
+    presencePenalty?: number;
+    stopSequences?: string[];
+    responseFormat?: any;
   };
   systemPrompt?: string;
   instructions?: string;
@@ -210,7 +210,7 @@ export class LLMClient {
             
             toolResults.push({
               type: 'tool_result',
-              tool_use_id: toolUse.id,
+              toolUseId: toolUse.id,
               function_name: toolUse.name, // Add function name for providers that need it
               content: [{ type: 'text', text: JSON.stringify(result) }]
             });
@@ -218,9 +218,9 @@ export class LLMClient {
             // console.log('❌ Function execution error:', error);
             toolResults.push({
               type: 'tool_result',
-              tool_use_id: toolUse.id,
+              toolUseId: toolUse.id,
               function_name: toolUse.name, // Add function name for providers that need it
-              is_error: true,
+              isError: true,
               content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }]
             });
           }

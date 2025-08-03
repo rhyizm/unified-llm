@@ -152,7 +152,13 @@ export class DeepSeekProvider extends BaseProvider {
     });
     
     if (!response.ok) {
-      const error = await response.json();
+      const errorText = await response.text();
+      let error;
+      try {
+        error = JSON.parse(errorText);
+      } catch (parseError) {
+        error = { message: errorText };
+      }
       throw this.handleError(error);
     }
     
@@ -177,7 +183,7 @@ export class DeepSeekProvider extends BaseProvider {
             content: Array.isArray(tr.content) 
               ? tr.content.map(item => item.type === 'text' ? item.text : '[Non-text content]').join('\n')
               : '[Tool result]',
-            tool_call_id: tr.tool_use_id,
+            tool_call_id: tr.toolUseId,
           }));
         }
       }
@@ -229,7 +235,7 @@ export class DeepSeekProvider extends BaseProvider {
             return {
               type: 'image_url' as const,
               image_url: {
-                url: c.source.url || `data:${c.source.media_type};base64,${c.source.data}`,
+                url: c.source.url || `data:${c.source.mediaType};base64,${c.source.data}`,
               },
             };
           default:
@@ -247,12 +253,12 @@ export class DeepSeekProvider extends BaseProvider {
     return {
       model: model,
       messages,
-      temperature: request.generation_config?.temperature,
-      max_tokens: request.generation_config?.max_tokens,
-      top_p: request.generation_config?.top_p,
-      frequency_penalty: request.generation_config?.frequency_penalty,
-      presence_penalty: request.generation_config?.presence_penalty,
-      stop: request.generation_config?.stop_sequences,
+      temperature: request.generationConfig?.temperature,
+      max_tokens: request.generationConfig?.max_tokens,
+      top_p: request.generationConfig?.top_p,
+      frequencyPenalty: request.generationConfig?.frequencyPenalty,
+      presencePenalty: request.generationConfig?.presencePenalty,
+      stop: request.generationConfig?.stopSequences,
       tools: [
         ...(request.tools?.map(tool => ({
           type: 'function' as const,
@@ -273,7 +279,7 @@ export class DeepSeekProvider extends BaseProvider {
         })) || []),
       ] : undefined,
       tool_choice: request.tool_choice as any,
-      response_format: request.generation_config?.response_format,
+      responseFormat: request.generationConfig?.responseFormat,
     };
   }
   
@@ -304,13 +310,13 @@ export class DeepSeekProvider extends BaseProvider {
       id: this.generateMessageId(),
       role: message.role as any,
       content,
-      created_at: new Date(),
+      createdAt: new Date(),
     };
     
     const usage: UsageStats | undefined = response.usage ? {
-      input_tokens: response.usage.prompt_tokens,
-      output_tokens: response.usage.completion_tokens,
-      total_tokens: response.usage.total_tokens,
+      inputTokens: response.usage.prompt_tokens,
+      outputTokens: response.usage.completion_tokens,
+      totalTokens: response.usage.total_tokens,
     } : undefined;
     
     // Extract text for convenience field
@@ -325,8 +331,8 @@ export class DeepSeekProvider extends BaseProvider {
       text: (textContent as any)?.text || '',
       usage,
       finish_reason: choice.finish_reason as any,
-      created_at: new Date(response.created * 1000),
-      raw_response: response,
+      createdAt: new Date(response.created * 1000),
+      rawResponse: response,
     };
   }
   
@@ -344,7 +350,7 @@ export class DeepSeekProvider extends BaseProvider {
       id: this.generateMessageId(),
       role: delta.role || 'assistant',
       content,
-      created_at: new Date(),
+      createdAt: new Date(),
     };
     
     // Extract text for convenience field
@@ -358,8 +364,8 @@ export class DeepSeekProvider extends BaseProvider {
       message: unifiedMessage,
       text: (textContent as any)?.text || '',
       finish_reason: choice.finish_reason as any,
-      created_at: new Date(chunk.created * 1000),
-      raw_response: chunk,
+      createdAt: new Date(chunk.created * 1000),
+      rawResponse: chunk,
     };
   }
   
@@ -367,8 +373,8 @@ export class DeepSeekProvider extends BaseProvider {
     return {
       code: error.error?.code || 'deepseek_error',
       message: error.error?.message || error.message || 'Unknown error occurred',
-      type: this.mapErrorType(error.status_code || error.status),
-      status_code: error.status_code || error.status,
+      type: this.mapErrorType(error.statusCode || error.status),
+      statusCode: error.statusCode || error.status,
       provider: 'deepseek',
       details: error,
     };

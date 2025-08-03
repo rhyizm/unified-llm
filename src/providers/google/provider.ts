@@ -58,7 +58,7 @@ export class GeminiProvider extends BaseProvider {
       const history = await this.convertToGeminiHistory(filteredMessages.slice(0, -1));
       const chatConfig: any = {
         history,
-        generationConfig: this.convertGenerationConfig(request.generation_config),
+        generationConfig: this.convertGenerationConfig(request.generationConfig),
         tools: tools.length > 0 ? tools : undefined,
       };
       
@@ -156,7 +156,7 @@ export class GeminiProvider extends BaseProvider {
       
       const chatConfig: any = {
         history,
-        generationConfig: this.convertGenerationConfig(request.generation_config),
+        generationConfig: this.convertGenerationConfig(request.generationConfig),
         tools: tools.length > 0 ? tools : undefined,
       };
       
@@ -362,7 +362,7 @@ export class GeminiProvider extends BaseProvider {
           case 'image':
             return {
               inlineData: {
-                mimeType: c.source.media_type || 'image/jpeg',
+                mimeType: c.source.mediaType || 'image/jpeg',
                 data: c.source.data || '',
               },
             };
@@ -417,7 +417,7 @@ export class GeminiProvider extends BaseProvider {
             
             return {
               functionResponse: {
-                name: (c as any).function_name || (c as any).tool_use_id,
+                name: (c as any).functionName || (c as any).toolUseId,
                 response: responseContent
               }
             };
@@ -459,7 +459,7 @@ export class GeminiProvider extends BaseProvider {
         case 'image':
           return {
             inlineData: {
-              mimeType: c.source.media_type || 'image/jpeg',
+              mimeType: c.source.mediaType || 'image/jpeg',
               data: c.source.data || '',
             },
           };
@@ -477,23 +477,23 @@ export class GeminiProvider extends BaseProvider {
       topP: config.top_p,
       topK: config.top_k,
       maxOutputTokens: config.max_tokens,
-      stopSequences: config.stop_sequences,
+      stopSequences: config.stopSequences,
     };
     
     // Handle response format
-    if (config.response_format) {
+    if (config.responseFormat) {
       // If it's a ResponseFormat instance, use its toGoogle method
-      if (config.response_format instanceof ResponseFormat) {
-        const googleFormat = config.response_format.toGoogle();
+      if (config.responseFormat instanceof ResponseFormat) {
+        const googleFormat = config.responseFormat.toGoogle();
         result.responseMimeType = googleFormat.responseMimeType;
         result.responseSchema = googleFormat.responseSchema;
       }
       // Handle legacy format
-      else if (config.response_format.type === 'json_object') {
+      else if (config.responseFormat.type === 'json_object') {
         result.responseMimeType = 'application/json';
         
-        if (config.response_format.schema) {
-          result.responseSchema = this.convertToGoogleSchema(config.response_format.schema);
+        if (config.responseFormat.schema) {
+          result.responseSchema = this.convertToGoogleSchema(config.responseFormat.schema);
         }
       }
     }
@@ -613,14 +613,14 @@ export class GeminiProvider extends BaseProvider {
       id: this.generateMessageId(),
       role: 'assistant',
       content,
-      created_at: new Date(),
+      createdAt: new Date(),
     };
     
     // Geminiは使用統計を異なる形式で提供
     const usage: UsageStats | undefined = response.usageMetadata ? {
-      input_tokens: response.usageMetadata.promptTokenCount || 0,
-      output_tokens: response.usageMetadata.candidatesTokenCount || 0,
-      total_tokens: response.usageMetadata.totalTokenCount || 0,
+      inputTokens: response.usageMetadata.promptTokenCount || 0,
+      outputTokens: response.usageMetadata.candidatesTokenCount || 0,
+      totalTokens: response.usageMetadata.totalTokenCount || 0,
     } : undefined;
     
     // Extract text for convenience field
@@ -635,8 +635,8 @@ export class GeminiProvider extends BaseProvider {
       text: (textContent as any)?.text || '',
       usage,
       finish_reason: this.mapFinishReason(response.candidates?.[0]?.finishReason),
-      created_at: new Date(),
-      raw_response: response,
+      createdAt: new Date(),
+      rawResponse: response,
     };
   }
   
@@ -652,7 +652,7 @@ export class GeminiProvider extends BaseProvider {
       id: this.generateMessageId(),
       role: 'assistant',
       content,
-      created_at: new Date(),
+      createdAt: new Date(),
     };
     
     // Extract text for convenience field
@@ -665,8 +665,8 @@ export class GeminiProvider extends BaseProvider {
       provider: 'google',
       message: unifiedMessage,
       text: (textContent as any)?.text || '',
-      created_at: new Date(),
-      raw_response: chunk,
+      createdAt: new Date(),
+      rawResponse: chunk,
     };
   }
   

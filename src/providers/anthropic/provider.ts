@@ -237,11 +237,11 @@ export class AnthropicProvider extends BaseProvider {
                   id: this.generateMessageId(),
                   role: 'assistant',
                   content: [{ type: 'text', text: chunkText }],
-                  created_at: new Date(),
+                  createdAt: new Date(),
                 },
                 text: chunkText,
-                created_at: new Date(),
-                raw_response: null,
+                createdAt: new Date(),
+                rawResponse: null,
               };
             }
           }
@@ -272,7 +272,7 @@ export class AnthropicProvider extends BaseProvider {
               type: 'image' as const,
               source: {
                 type: (c.source.url ? 'url' : 'base64') as any,
-                media_type: c.source.media_type || 'image/jpeg',
+                mediaType: c.source.mediaType || 'image/jpeg',
                 data: c.source.data,
                 url: c.source.url,
               },
@@ -319,8 +319,8 @@ export class AnthropicProvider extends BaseProvider {
           case 'tool_result':
             return {
               type: 'tool_result' as const,
-              tool_use_id: c.tool_use_id,
-              is_error: c.is_error,
+              tool_use_id: c.toolUseId,
+              is_error: c.isError,
               content: c.content?.map(tc => ({
                 type: 'text' as const,
                 text: tc.type === 'text' ? tc.text : '[Unsupported content]',
@@ -338,8 +338,8 @@ export class AnthropicProvider extends BaseProvider {
     }));
 
     // Handle response_format for Anthropic
-    if (request.generation_config?.response_format instanceof ResponseFormat) {
-      messages = request.generation_config.response_format.addRequestSuffix(messages);
+    if (request.generationConfig?.responseFormat instanceof ResponseFormat) {
+      messages = request.generationConfig.responseFormat.addRequestSuffix(messages);
     }
 
     // toolsの結合: request.toolsとcustomFunctionsを統合
@@ -366,11 +366,11 @@ export class AnthropicProvider extends BaseProvider {
       model: request.model || this.model as Anthropic.Model,
       messages: messages as any,
       system: systemMessage ? this.extractTextFromContent(systemMessage.content) : undefined,
-      max_tokens: request.generation_config?.max_tokens || 4096,
-      temperature: request.generation_config?.temperature,
-      top_p: request.generation_config?.top_p,
-      top_k: request.generation_config?.top_k,
-      stop_sequences: request.generation_config?.stop_sequences,
+      max_tokens: request.generationConfig?.max_tokens || 4096,
+      temperature: request.generationConfig?.temperature,
+      top_p: request.generationConfig?.top_p,
+      top_k: request.generationConfig?.top_k,
+      stop_sequences: request.generationConfig?.stopSequences,
       tools: tools.length > 0 ? tools : undefined,
     };
   }
@@ -396,13 +396,13 @@ export class AnthropicProvider extends BaseProvider {
       id: response.id,
       role: response.role,
       content,
-      created_at: new Date(),
+      createdAt: new Date(),
     };
     
     const usage: UsageStats = {
-      input_tokens: response.usage.input_tokens,
-      output_tokens: response.usage.output_tokens,
-      total_tokens: response.usage.input_tokens + response.usage.output_tokens,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      totalTokens: response.usage.input_tokens + response.usage.output_tokens,
     };
     
     // Extract text for convenience field
@@ -417,8 +417,8 @@ export class AnthropicProvider extends BaseProvider {
       text: (textContent as any)?.text || '',
       usage,
       finish_reason: response.stop_reason as any,
-      created_at: new Date(),
-      raw_response: response,
+      createdAt: new Date(),
+      rawResponse: response,
     };
   }
   
@@ -436,7 +436,7 @@ export class AnthropicProvider extends BaseProvider {
       id: this.generateMessageId(),
       role: 'assistant',
       content,
-      created_at: new Date(),
+      createdAt: new Date(),
     };
     
     // Extract text for convenience field
@@ -449,8 +449,8 @@ export class AnthropicProvider extends BaseProvider {
       provider: 'anthropic',
       message: unifiedMessage,
       text: (textContent as any)?.text || '',
-      created_at: new Date(),
-      raw_response: chunk,
+      createdAt: new Date(),
+      rawResponse: chunk,
     };
   }
   
@@ -468,7 +468,7 @@ export class AnthropicProvider extends BaseProvider {
         code: errorBody?.type || 'anthropic_error',
         message: errorBody?.message || error.message,
         type: this.mapErrorType(error.status),
-        status_code: error.status,
+        statusCode: error.status,
         provider: 'anthropic',
         details: error,
       };

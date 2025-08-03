@@ -351,7 +351,7 @@ export class OpenAIProvider extends BaseProvider {
             content: Array.isArray(tr.content) 
               ? tr.content.map(item => item.type === 'text' ? item.text : '[Non-text content]').join('\n')
               : '[Tool result]',
-            tool_call_id: tr.tool_use_id,
+            tool_call_id: tr.toolUseId,
           }));
         }
       }
@@ -404,7 +404,7 @@ export class OpenAIProvider extends BaseProvider {
             return {
               type: 'image_url' as const,
               image_url: {
-                url: c.source.url || `data:${c.source.media_type};base64,${c.source.data}`,
+                url: c.source.url || `data:${c.source.mediaType};base64,${c.source.data}`,
               },
             };
           default:
@@ -422,12 +422,12 @@ export class OpenAIProvider extends BaseProvider {
     return {
       model: model,
       messages,
-      temperature: request.generation_config?.temperature,
-      max_tokens: request.generation_config?.max_tokens,
-      top_p: request.generation_config?.top_p,
-      frequency_penalty: request.generation_config?.frequency_penalty,
-      presence_penalty: request.generation_config?.presence_penalty,
-      stop: request.generation_config?.stop_sequences,
+      temperature: request.generationConfig?.temperature,
+      max_tokens: request.generationConfig?.max_tokens,
+      top_p: request.generationConfig?.top_p,
+      frequency_penalty: request.generationConfig?.frequencyPenalty,
+      presence_penalty: request.generationConfig?.presencePenalty,
+      stop: request.generationConfig?.stopSequences,
       tools: [
         ...(request.tools?.map(tool => ({
           type: 'function' as const,
@@ -448,7 +448,7 @@ export class OpenAIProvider extends BaseProvider {
         })) || []),
       ] : undefined,
       tool_choice: request.tool_choice as any,
-      response_format: this.convertResponseFormat(request.generation_config?.response_format),
+      response_format: this.convertResponseFormat(request.generationConfig?.responseFormat),
     };
   }
   
@@ -501,14 +501,14 @@ export class OpenAIProvider extends BaseProvider {
             return {
               type: 'input_image',
               image_url: {
-                url: c.source.url || `data:${c.source.media_type};base64,${c.source.data}`,
+                url: c.source.url || `data:${c.source.mediaType};base64,${c.source.data}`,
               },
             };
           case 'tool_result':
             // tool_resultはtool_result_contentとして送信
             return {
               type: 'tool_result_content',
-              tool_use_id: c.tool_use_id,
+              toolUseId: c.toolUseId,
               content: Array.isArray(c.content)
                 ? c.content.map(item => item.type === 'text' ? item.text : '[Non-text content]').join('\n')
                 : '[Tool result]'
@@ -525,9 +525,9 @@ export class OpenAIProvider extends BaseProvider {
     return {
       model: request.model || this.model,
       input,
-      temperature: request.generation_config?.temperature,
-      max_output_tokens: request.generation_config?.max_tokens,
-      top_p: request.generation_config?.top_p,
+      temperature: request.generationConfig?.temperature,
+      max_outputTokens: request.generationConfig?.max_tokens,
+      top_p: request.generationConfig?.top_p,
       tools: [
         ...(request.tools?.map(tool => ({
           type: 'function',
@@ -548,8 +548,8 @@ export class OpenAIProvider extends BaseProvider {
         })) || []),
       ] : undefined,
       tool_choice: request.tool_choice as any,
-      text: request.generation_config?.response_format ? {
-        format: request.generation_config.response_format
+      text: request.generationConfig?.responseFormat ? {
+        format: request.generationConfig.responseFormat
       } : undefined,
       // TODO: previous_response_idの管理方法を検討
       previous_response_id: undefined,
@@ -584,13 +584,13 @@ export class OpenAIProvider extends BaseProvider {
       id: this.generateMessageId(),
       role: message.role as any,
       content,
-      created_at: new Date(),
+      createdAt: new Date(),
     };
     
     const usage: UsageStats | undefined = response.usage ? {
-      input_tokens: response.usage.prompt_tokens,
-      output_tokens: response.usage.completion_tokens,
-      total_tokens: response.usage.total_tokens,
+      inputTokens: response.usage.prompt_tokens,
+      outputTokens: response.usage.completion_tokens,
+      totalTokens: response.usage.total_tokens,
     } : undefined;
     
     // Extract text for convenience field
@@ -605,8 +605,8 @@ export class OpenAIProvider extends BaseProvider {
       text: (textContent as any)?.text || '',
       usage,
       finish_reason: choice.finish_reason as any,
-      created_at: new Date(response.created * 1000),
-      raw_response: response,
+      createdAt: new Date(response.created * 1000),
+      rawResponse: response,
     };
   }
   
@@ -642,13 +642,13 @@ export class OpenAIProvider extends BaseProvider {
       id: outputMessage.id || this.generateMessageId(),
       role: outputMessage.role || 'assistant',
       content,
-      created_at: new Date(),
+      createdAt: new Date(),
     };
     
     const usage: UsageStats | undefined = response.usage ? {
-      input_tokens: response.usage.input_tokens,
-      output_tokens: response.usage.output_tokens,
-      total_tokens: response.usage.total_tokens,
+      inputTokens: response.usage.inputTokens,
+      outputTokens: response.usage.outputTokens,
+      totalTokens: response.usage.total_tokens,
     } : undefined;
     
     // Extract text for convenience field
@@ -663,8 +663,8 @@ export class OpenAIProvider extends BaseProvider {
       text: (textContent as any)?.text || '',
       usage,
       finish_reason: outputMessage.status === 'completed' ? 'stop' : undefined,
-      created_at: new Date(response.created_at * 1000),
-      raw_response: response,
+      createdAt: new Date(response.createdAt * 1000),
+      rawResponse: response,
     };
   }
   
@@ -696,7 +696,7 @@ export class OpenAIProvider extends BaseProvider {
       id: this.generateMessageId(),
       role: delta.role || 'assistant',
       content,
-      created_at: new Date(),
+      createdAt: new Date(),
     };
     
     // Extract text for convenience field
@@ -710,8 +710,8 @@ export class OpenAIProvider extends BaseProvider {
       message: unifiedMessage,
       text: (textContent as any)?.text || '',
       finish_reason: choice.finish_reason as any,
-      created_at: new Date(chunk.created * 1000),
-      raw_response: chunk,
+      createdAt: new Date(chunk.created * 1000),
+      rawResponse: chunk,
     };
   }
   
@@ -727,7 +727,7 @@ export class OpenAIProvider extends BaseProvider {
       id: this.generateMessageId(),
       role: chunk.delta?.role || 'assistant',
       content,
-      created_at: new Date(),
+      createdAt: new Date(),
     };
     
     // Extract text for convenience field
@@ -741,8 +741,8 @@ export class OpenAIProvider extends BaseProvider {
       message: unifiedMessage,
       text: (textContent as any)?.text || '',
       finish_reason: chunk.status === 'completed' ? 'stop' : undefined,
-      created_at: new Date(chunk.created_at || Date.now()),
-      raw_response: chunk,
+      createdAt: new Date(chunk.createdAt || Date.now()),
+      rawResponse: chunk,
     };
   }
   
@@ -752,7 +752,7 @@ export class OpenAIProvider extends BaseProvider {
         code: error.code || 'openai_error',
         message: error.message,
         type: this.mapErrorType(error.status),
-        status_code: error.status,
+        statusCode: error.status,
         provider: 'openai',
         details: error,
       };
