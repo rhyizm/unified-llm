@@ -15,18 +15,26 @@ import { ResponseFormat } from '../../response-format';
 export class OpenAIProvider extends BaseProvider {
   protected client: OpenAI;
   private apiKey: string;
+  private baseURL?: string;
   private useResponsesAPI: boolean;
   
-  constructor({ apiKey, model, tools, options }: { 
+  constructor({ apiKey, model, baseURL, tools, options }: { 
     apiKey: string, 
     model?: string, 
+    baseURL?: string,
     tools?: Tool[],
     options?: { useResponsesAPI?: boolean }
   }) {
     super({ model: model, tools });
     this.apiKey = apiKey;
-    this.useResponsesAPI = options?.useResponsesAPI || false;
-    this.client = new OpenAI({ apiKey });
+    this.baseURL = baseURL;
+    // カスタムbaseURLが設定されている場合は、Responses APIを無効化
+    // Ollama等のOpenAI互換APIはResponses APIをサポートしていないため
+    this.useResponsesAPI = baseURL ? false : (options?.useResponsesAPI || false);
+    this.client = new OpenAI({ 
+      apiKey,
+      baseURL: baseURL || undefined // OpenAI SDKにbaseURLを渡す
+    });
   }
   
   async chat(request: UnifiedChatRequest): Promise<UnifiedChatResponse> {
@@ -112,8 +120,13 @@ export class OpenAIProvider extends BaseProvider {
     // This implementation uses the raw HTTP client to call the new API
     const responsesRequest = this.convertToResponsesAPIFormat(request);
     
+    // Construct URL - use baseURL if provided, otherwise use OpenAI's API
+    const url = this.baseURL 
+      ? `${this.baseURL}/responses`
+      : 'https://api.openai.com/v1/responses';
+    
     // Make raw HTTP request to the Responses API
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -282,8 +295,13 @@ export class OpenAIProvider extends BaseProvider {
   private async *streamWithResponsesAPI(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
     const responsesRequest = this.convertToResponsesAPIFormat(request);
     
+    // Construct URL - use baseURL if provided, otherwise use OpenAI's API
+    const url = this.baseURL 
+      ? `${this.baseURL}/responses`
+      : 'https://api.openai.com/v1/responses';
+    
     // Make raw HTTP request to the Responses API with streaming
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

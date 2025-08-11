@@ -8,9 +8,10 @@ import { ToolDefinition, Tool } from './types/unified-api';
 // LLMClient構成オプション（実行時用）
 export interface LLMClientRuntimeConfig {
   id?: string;
-  provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'azure';
-  apiKey: string;
+  provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'azure' | 'ollama' | 'openai-compatible';
+  apiKey?: string;
   model?: string;
+  baseURL?: string;
   tools?: Tool[];
   generationConfig?: {
     temperature?: number;
@@ -43,12 +44,33 @@ export class LLMClient {
     switch (config.provider) {
       case 'openai':
         this.baseProvider = new OpenAIProvider({ 
-          apiKey: config.apiKey, 
+          apiKey: config.apiKey || '',
           model: config.model, 
+          baseURL: config.baseURL,
+          tools: this.tools
+        });
+        break;
+      case 'ollama':
+      case 'openai-compatible':
+        // OpenAI互換API用（Ollama含む）
+        if (!config.baseURL) {
+          throw new Error(`baseURL is required for ${config.provider} provider`);
+        }
+        if (!config.model) {
+          throw new Error(`model is required for ${config.provider} provider`);
+        }
+        
+        this.baseProvider = new OpenAIProvider({ 
+          apiKey: config.apiKey || '',
+          model: config.model,
+          baseURL: config.baseURL,
           tools: this.tools
         });
         break;
       case 'anthropic':
+        if (!config.apiKey) {
+          throw new Error('API key is required for Anthropic provider');
+        }
         this.baseProvider = new AnthropicProvider({ 
           apiKey: config.apiKey, 
           model: config.model || 'claude-3-haiku-20240307', 
@@ -56,6 +78,9 @@ export class LLMClient {
         });
         break;
       case 'google':
+        if (!config.apiKey) {
+          throw new Error('API key is required for Google provider');
+        }
         this.baseProvider = new GeminiProvider({ 
           apiKey: config.apiKey, 
           model: config.model, 
@@ -63,6 +88,9 @@ export class LLMClient {
         });
         break;
       case 'deepseek':
+        if (!config.apiKey) {
+          throw new Error('API key is required for DeepSeek provider');
+        }
         this.baseProvider = new DeepSeekProvider({ 
           apiKey: config.apiKey, 
           model: config.model || 'deepseek-chat', 
@@ -76,13 +104,16 @@ export class LLMClient {
 
   // 静的ファクトリーメソッド（後方互換性のため）
   static create(
-    provider: 'openai' | 'anthropic' | 'google' | 'deepseek',
+    provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'ollama' | 'openai-compatible',
     apiKey: string,
     model: string
   ): BaseProvider {
     switch (provider) {
       case 'openai':
         return new OpenAIProvider({ apiKey, model });
+      case 'ollama':
+      case 'openai-compatible':
+        throw new Error(`${provider} provider requires baseURL. Use new LLMClient() constructor instead.`);
       case 'anthropic':
         return new AnthropicProvider({ apiKey, model });
       case 'google':

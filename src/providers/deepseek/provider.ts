@@ -156,7 +156,7 @@ export class DeepSeekProvider extends BaseProvider {
       let error;
       try {
         error = JSON.parse(errorText);
-      } catch (parseError) {
+      } catch {
         error = { message: errorText };
       }
       throw this.handleError(error);

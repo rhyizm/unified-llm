@@ -7,10 +7,11 @@ A unified interface for interacting with multiple Large Language Models (LLMs) i
 
 ## Features
 
-- 🤖 **Multi-Provider Support** - OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Azure OpenAI
+- 🤖 **Multi-Provider Support** - OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Azure OpenAI, Ollama
 - 🔧 **Function Calling** - Execute local functions and integrate external tools
 - 📊 **Structured Output** - Guaranteed JSON schema compliance across all providers
 - 💬 **Conversation Persistence** - SQLite-based chat history and thread management
+- 🏠 **Local LLM Support** - Run models locally with Ollama's OpenAI-compatible API
 
 ## Installation
 
@@ -651,6 +652,113 @@ const response = await azureOpenAI.chat({
 });
 ```
 
+## Ollama & OpenAI-Compatible APIs
+
+### Ollama (Local LLM) Example
+
+Ollama provides an OpenAI-compatible API, allowing you to run large language models locally. You can use either `provider: 'ollama'`.
+
+### Prerequisites
+
+1. Install Ollama from [ollama.ai](https://ollama.ai)
+2. Pull a model: `ollama pull llama3` (or any other model)
+3. Start Ollama server (usually runs automatically at `http://localhost:11434`)
+
+### Basic Usage
+
+```typescript
+import { LLMClient } from '@unified-llm/core';
+
+// Ollama configuration - no API key required
+const ollama = new LLMClient({
+  provider: 'ollama',
+  model: 'llama3',  // or 'mistral', 'codellama', etc.
+  baseURL: 'http://localhost:11434/v1',  // Optional - this is the default
+  systemPrompt: 'You are a helpful assistant running locally.'
+});
+
+// Use it just like any other provider
+const response = await ollama.chat({
+  messages: [{
+    id: '1',
+    role: 'user',
+    content: 'Explain quantum computing in simple terms.',
+    createdAt: new Date()
+  }]
+});
+
+console.log(response.message.content);
+```
+
+### Remote Ollama Server
+
+If you're running Ollama on a different machine or port:
+
+```typescript
+const remoteOllama = new LLMClient({
+  provider: 'ollama',
+  model: 'llama3',
+  baseURL: 'http://your-server:11434/v1'  // Replace with your server address
+});
+```
+
+### Available Models
+
+Popular models you can use with Ollama:
+- `llama3` - Meta's Llama 3
+- `mistral` - Mistral AI's models
+- `codellama` - Code-focused Llama variant
+- `phi` - Microsoft's Phi models
+- `gemma` - Google's Gemma models
+- `mixtral` - Mixture of experts model
+
+Check available models with: `ollama list`
+
+### Why Use Ollama Provider?
+
+While Ollama is OpenAI-compatible and could work with `provider: 'openai'`, using `provider: 'ollama'` offers:
+- **Clearer intent** - Makes it obvious you're using a local model
+- **No API key required** - Ollama doesn't need authentication
+- **Future compatibility** - If we add Ollama-specific features, your code won't need changes
+
+### Running Examples
+
+You can run TypeScript examples directly with tsx:
+
+```bash
+# Add tsx to your project
+npm install --save-dev tsx
+
+# Run the example
+npx tsx example.ts
+```
+
+Example file (`example.ts`):
+```typescript
+import { LLMClient } from '@unified-llm/core';
+
+async function runOllamaExample() {
+  const ollamaClient = new LLMClient({
+    provider: 'ollama',
+    model: 'llama3',
+    baseURL: 'http://localhost:11434/v1'
+  });
+
+  const response = await ollamaClient.chat({
+    messages: [{
+      id: '1',
+      role: 'user',
+      content: 'Hello, introduce yourself in Japanese.',
+      createdAt: new Date()
+    }]
+  });
+
+  console.log('Ollama Response:', JSON.stringify(response, null, 2));
+}
+
+runOllamaExample().catch(console.error);
+```
+
 ## Environment Variables
 
 ```env
@@ -673,6 +781,7 @@ UNIFIED_LLM_DB_PATH=./chat-history.db  # Optional custom DB path
 | **Google** | Gemini 2.0 Flash, Gemini 1.5 Pro/Flash | Function calling, multimodal, structured output |
 | **DeepSeek** | DeepSeek-Chat, DeepSeek-Coder | Function calling, streaming, code generation, structured output |
 | **Azure OpenAI** | GPT-4o, GPT-4, GPT-3.5 (via Azure deployments) | Function calling, streaming, structured output |
+| **Ollama** | Llama 3, Mistral, CodeLlama, Phi, Gemma, Mixtral, etc. | Local execution, OpenAI-compatible API, no API key required |
 
 ## API Methods
 
