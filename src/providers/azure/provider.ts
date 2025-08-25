@@ -1,5 +1,5 @@
 // src/providers/azure/provider.ts
-import { OpenAIProvider } from '../openai';
+import { OpenAICompletionProvider } from '../openai';
 import OpenAI, { AzureOpenAI } from 'openai';
 import { TokenCredential } from '@azure/core-auth';
 
@@ -12,13 +12,13 @@ interface AzureAuth {
   useV1?: boolean;                    // true = /openai/v1
 }
 
-/* OpenAIProvider の第1引数から model だけ除外 (apiKey は残す) */
+/* OpenAICompletionProvider の第1引数から model だけ除外 (apiKey は残す) */
 type OpenAIBaseOpts = Omit<
-  ConstructorParameters<typeof OpenAIProvider>[0],
+  ConstructorParameters<typeof OpenAICompletionProvider>[0],
   'model'
 >;
 
-export class AzureOpenAIProvider extends OpenAIProvider {
+export class AzureOpenAIProvider extends OpenAICompletionProvider {
   protected client!: OpenAI | AzureOpenAI;
 
   constructor(auth: AzureAuth, base: OpenAIBaseOpts) {

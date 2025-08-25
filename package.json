@@ -69,6 +69,7 @@
     "@anthropic-ai/sdk": "^0.53.0",
     "@azure/core-auth": "^1.9.0",
     "@google/generative-ai": "^0.24.1",
+    "@openai/agents": "^0.0.17",
     "debug": "^4.4.0",
     "dotenv": "^16.4.7",
     "openai": "^4.78.1",

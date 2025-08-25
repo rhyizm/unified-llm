@@ -1,5 +1,5 @@
 import BaseProvider from './providers/base-provider';
-import { OpenAIProvider } from './providers/openai';
+import { OpenAIProvider, OpenAICompletionProvider } from './providers/openai';
 import { AnthropicProvider } from './providers/anthropic';
 import { GeminiProvider } from './providers/google';
 import { DeepSeekProvider } from './providers/deepseek';
@@ -60,7 +60,7 @@ export class LLMClient {
           throw new Error(`model is required for ${config.provider} provider`);
         }
         
-        this.baseProvider = new OpenAIProvider({ 
+        this.baseProvider = new OpenAICompletionProvider({ 
           apiKey: config.apiKey || '',
           model: config.model,
           baseURL: config.baseURL,
@@ -110,7 +110,7 @@ export class LLMClient {
   ): BaseProvider {
     switch (provider) {
       case 'openai':
-        return new OpenAIProvider({ apiKey, model });
+        return new OpenAICompletionProvider({ apiKey, model });
       case 'ollama':
       case 'openai-compatible':
         throw new Error(`${provider} provider requires baseURL. Use new LLMClient() constructor instead.`);

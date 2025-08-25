@@ -1,4 +1,4 @@
-import { OpenAIProvider } from '../src/providers/openai';
+import { OpenAICompletionProvider } from '../src/providers/openai';
 import { getAuthor } from '../src/tools/getAuthor';
 import { Tool } from '../src/types/unified-api';
 import dotenv from 'dotenv';
@@ -10,7 +10,7 @@ describe('OpenAI Streaming with Tools Debug', () => {
   it('should handle streaming function calls with arguments', async () => {
     
     // 既存テストと同じ関数を使用
-    const openai = new OpenAIProvider({
+    const openai = new OpenAICompletionProvider({
       apiKey: process.env.OPENAI_API_KEY!,
       model: 'gpt-4.1-mini',
       tools: [getAuthor],
@@ -81,7 +81,7 @@ describe('OpenAI Streaming with Tools Debug', () => {
       }
     };
 
-    const openai = new OpenAIProvider({
+    const openai = new OpenAICompletionProvider({
       apiKey: process.env.OPENAI_API_KEY!,
       model: 'gpt-4.1-mini',
       tools: [getAuthorResidence],
@@ -147,7 +147,7 @@ describe('OpenAI Streaming with Tools Debug', () => {
       }
     };
 
-    const openai = new OpenAIProvider({
+    const openai = new OpenAICompletionProvider({
       apiKey: process.env.OPENAI_API_KEY!,
       model: 'gpt-4.1-mini',
       tools: [getAuthorResidence],

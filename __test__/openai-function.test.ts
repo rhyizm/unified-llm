@@ -1,4 +1,4 @@
-import { OpenAIProvider } from '../src/providers/openai';
+import { OpenAICompletionProvider } from '../src/providers/openai';
 import { getAuthor } from '../src/tools/getAuthor';
 import { Tool } from '../src/types/unified-api';
 import { ResponseFormat } from '../src/response-format';
@@ -11,7 +11,7 @@ describe('OpenAI Tools Debug', () => {
   it('should debug if tools are being sent to OpenAI API', async () => {
     
     // Use the base OpenAI assistant directly
-    const openai = new OpenAIProvider({
+    const openai = new OpenAICompletionProvider({
       apiKey: process.env.OPENAI_API_KEY!,
       model: 'gpt-4.1-mini',
       tools: [getAuthor],
@@ -73,7 +73,7 @@ describe('OpenAI Tools Debug', () => {
       }
     };
 
-    const openai = new OpenAIProvider({
+    const openai = new OpenAICompletionProvider({
       apiKey: process.env.OPENAI_API_KEY!,
       model: 'gpt-4.1-mini',
       tools: [getAuthorResidence],
@@ -134,7 +134,7 @@ describe('OpenAI Tools Debug', () => {
       }
     };
 
-    const openai = new OpenAIProvider({
+    const openai = new OpenAICompletionProvider({
       apiKey: process.env.OPENAI_API_KEY!,
       model: 'gpt-4.1-mini',
       tools: [getAuthorResidence],
@@ -192,7 +192,7 @@ describe('OpenAI Tools Debug', () => {
       schema: userProfileSchema
     });
 
-    const openai = new OpenAIProvider({
+    const openai = new OpenAICompletionProvider({
       apiKey: process.env.OPENAI_API_KEY!,
       model: 'gpt-4.1-mini'
     });

@@ -2,7 +2,7 @@ import { ResponseFormat } from '../response-format';
 
 export type MessageRole = 'system' | 'user' | 'assistant' | 'tool' | 'function' | 'developer';
 
-export type ContentType = 'text' | 'image' | 'audio' | 'video' | 'file' | 'tool_use' | 'tool_result';
+export type ContentType = 'text' | 'image' | 'audio' | 'video' | 'file' | 'tool_use' | 'tool_result' | 'reasoning';
 
 export type ImageSourceType = 'base64' | 'url';
 
@@ -15,6 +15,14 @@ export interface ImageContent {
     url?: string;
   };
   altText?: string;
+}
+
+export interface BaseContent {
+  type: ContentType;
+  id?: string;
+  role?: MessageRole;
+  name?: string;
+  text?: string;
 }
 
 export interface TextContent {
