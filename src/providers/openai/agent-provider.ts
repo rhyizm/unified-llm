@@ -2,11 +2,15 @@ import OpenAI from 'openai';
 import {
   Agent,
   run,
+  user,
+  assistant,
+  tool as agentsTool,
   MCPServerStdio,
   MCPServerSSE,
   MCPServerStreamableHttp,
   setDefaultOpenAIKey,
 } from '@openai/agents';
+
 import {
   UnifiedChatRequest,
   UnifiedChatResponse,
@@ -14,155 +18,312 @@ import {
   Message,
   MessageContent,
   BaseContent,
+  TextContent,
   UsageStats,
-  Tool,
+  Tool as UnifiedTool,
 } from '../../types/unified-api';
 import { MCPServerConfig } from '../../types/mcp';
 import { validateChatRequest } from '../../utils/validation';
 import BaseProvider from '../base-provider';
 
-// MCP server configuration types
+// MCP server union type for convenience
 type MCPServer = MCPServerStdio | MCPServerSSE | MCPServerStreamableHttp;
 
 export class OpenAIAgentProvider extends BaseProvider {
-  private agent?: Agent;
-  protected mcpServers: MCPServer[] = [];
   private mcpServerConfigs?: MCPServerConfig[];
-  private mcpServersInitialized = false;
+  private providerTools: UnifiedTool[];
 
   constructor({
     apiKey,
     model,
-    tools,
+    tools = [],
     mcpServers,
   }: {
     apiKey: string;
     model?: string;
-    tools?: Tool[];
+    tools?: UnifiedTool[];
     mcpServers?: MCPServerConfig[];
   }) {
-    super({ model: model, tools });
-
-    // Use the provided API key for the Agent SDK
+    // 既定モデルが未指定の場合でも extractUnifiedPayload が例外を投げないようにデフォルトを設定
+    super({ model: model ?? 'gpt-4o', tools });
     setDefaultOpenAIKey(apiKey);
-
-    // Store MCP server configs for lazy initialization
     this.mcpServerConfigs = mcpServers;
+    this.providerTools = tools ?? [];
   }
 
-  private async ensureMCPServersInitialized(): Promise<void> {
-    if (this.mcpServersInitialized || !this.mcpServerConfigs) return;
-
-    for (const config of this.mcpServerConfigs) {
-      try {
-        let server: MCPServer;
-
-        switch (config.type) {
-          case 'stdio': {
-            if (!config.command) {
-              throw new Error('Command is required for stdio MCP server');
-            }
-            server = new MCPServerStdio({
-              name: config.name,
-              command: config.command,
-              args: config.args || [],
-              env: config.env,
-            });
-            await (server as any).connect();
-            break;
-          }
-
-          case 'sse': {
-            if (!config.url) {
-              throw new Error('URL is required for SSE MCP server');
-            }
-            server = new MCPServerSSE({
-              name: config.name,
-              url: config.url,
-              requestInit: config.headers ? { headers: config.headers } : undefined,
-            });
-            await (server as any).connect();
-            break;
-          }
-
-          case 'streamable_http': {
-            if (!config.url) {
-              throw new Error('URL is required for Streamable HTTP MCP server');
-            }
-            // Do NOT auto-append `/mcp`; expect the caller to pass the full URL they want.
-            const httpUrl = config.url;
-            server = new MCPServerStreamableHttp({
-              name: config.name,
-              url: httpUrl,
-              requestInit: config.headers ? { headers: config.headers } : undefined,
-            });
-            await (server as any).connect();
-            break;
-          }
-
-          default:
-            console.warn(`Unknown MCP server type: ${(config as any).type}`);
-            continue;
-        }
-
-        this.mcpServers.push(server);
-      } catch (error) {
-        console.error(`Failed to initialize MCP server ${config.name}:`, error);
-      }
-    }
-
-    this.mcpServersInitialized = true;
-  }
+  // --- Public API -----------------------------------------------------------
 
   async chat(request: UnifiedChatRequest): Promise<UnifiedChatResponse> {
     validateChatRequest(request);
 
-    try {
-      // Ensure MCP servers are ready
-      await this.ensureMCPServersInitialized();
+    const { agent, cleanup, effectiveModel } = await this.buildEphemeralAgent(request);
 
-      // Create the agent once and reuse it
-      if (!this.agent) {
-        this.agent = await this.createAgent(request);
+    const inputs = this.toAgentInputs(request.messages);
+
+    const ac = new AbortController();
+    try {
+      const result = await run(agent, inputs, { signal: ac.signal } as any);
+      const unified = this.convertAgentResultToUnified(result as any);
+      if (!unified.model) {
+        unified.model = effectiveModel;
       }
 
-      // Convert the last user message into the Agent SDK input
-      const latestMessage = request.messages[request.messages.length - 1];
-      const content = this.normalizeContent(latestMessage.content);
-      const textContent = content.find((c) => c.type === 'text');
-      const input = textContent?.text || 'Please continue.';
-
-      // Run the agent (non-streaming)
-      const result = await run(this.agent, input);
-
-      // Map to UnifiedChatResponse
-      return this.convertAgentResultToUnified(result as any);
+      return unified;
     } catch (error) {
       throw this.handleError(error);
+    } finally {
+      try {
+        ac.abort();
+      } catch (e) {
+        void e; // no-empty 回避
+      }
+      await cleanup();
     }
   }
 
-  private async createAgent(request: UnifiedChatRequest): Promise<Agent> {
-    // Extract a system message to use as the agent's instructions
-    const systemMessage = request.messages.find((m) => m.role === 'system');
-    const instructions = systemMessage
-      ? this.extractTextFromContent(systemMessage.content)
-      : 'You are a helpful assistant.';
+  /**
+   * Streaming: emits chunk responses as they arrive, then a final, fully-unified message.
+   */
+  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
+    validateChatRequest(request);
 
-    // Instantiate the Agent. Tools (if any) can be added here or later as needed.
-    return new Agent({
-      name: 'Assistant',
-      instructions,
-      mcpServers: this.mcpServers.length > 0 ? this.mcpServers : undefined,
-      model: request.model || this.model || 'gpt-4o',
-    } as any);
+    const { agent, cleanup, effectiveModel } = await this.buildEphemeralAgent(request);
+
+    const inputs = this.toAgentInputs(request.messages);
+
+    const ac = new AbortController();
+
+    try {
+      const streamed: any = await run(agent, inputs, { stream: true, signal: ac.signal } as any);
+      const textStream: any = streamed.toTextStream({ compatibleWithNodeStreams: true });
+
+      let fullText = '';
+      try {
+        for await (const chunk of textStream) {
+          const textChunk = typeof chunk === 'string' ? chunk : chunk?.toString?.('utf8') ?? '';
+          if (!textChunk) continue;
+          fullText += textChunk;
+
+          const msg: Message = {
+            id: this.generateMessageId(),
+            role: 'assistant',
+            content: [{ type: 'text', text: textChunk }],
+            createdAt: new Date(),
+          };
+
+          yield {
+            id: this.generateMessageId(),
+            model: effectiveModel, // 一時モデルをチャンクに付与
+            provider: 'openai',
+            message: msg,
+            text: textChunk,
+            createdAt: new Date(),
+            rawResponse: streamed,
+          };
+        }
+      } finally {
+        try {
+          if (typeof textStream?.destroy === 'function') textStream.destroy();
+        } catch (e) {
+          void e;
+        }
+        try {
+          if (typeof textStream?.cancel === 'function') await textStream.cancel();
+        } catch (e) {
+          void e;
+        }
+      }
+
+      const completed = await streamed.completed;
+      const finalUnified = this.convertAgentResultToUnified(completed);
+      finalUnified.finish_reason = 'stop';
+      if (fullText && !finalUnified.text) finalUnified.text = fullText;
+      finalUnified.rawResponse = completed;
+      if (!finalUnified.model) finalUnified.model = effectiveModel; // 念のため補完
+      yield finalUnified;
+    } finally {
+      try {
+        ac.abort();
+      } catch (e) {
+        void e;
+      }
+      await cleanup();
+    }
   }
 
+  // --- Agent setup / lifecycle --------------------------------------------
+
+  private async buildEphemeralAgent(request: UnifiedChatRequest): Promise<{
+    agent: Agent;
+    servers: MCPServer[];
+    cleanup: () => Promise<void>;
+    effectiveModel: string;
+  }> {
+    const servers = await this.initMCPServers();
+
+    // system メッセージは instructions として連結（input items には入れない）
+    const systemText = this.collectSystemText(request.messages) || 'You are a helpful assistant.';
+
+    // ★ インスタンスの this.model をミューテートせず、一時的な effectiveModel を決定
+    const effectiveModel = request.model ?? this.model ?? 'gpt-4o';
+
+    const agent = new Agent({
+      name: 'Assistant',
+      instructions: systemText,
+      mcpServers: servers.length ? servers : undefined,
+      model: effectiveModel,
+      tools: this.adaptFunctionTools(this.providerTools),
+    } as any);
+
+    const cleanup = async () => {
+      await this.closeMCPServers(servers);
+    };
+
+    return { agent, servers, cleanup, effectiveModel };
+  }
+
+  private async initMCPServers(): Promise<MCPServer[]> {
+    const servers: MCPServer[] = [];
+    if (!this.mcpServerConfigs?.length) return servers;
+
+    for (const config of this.mcpServerConfigs) {
+      let server: MCPServer | undefined;
+      try {
+        switch (config.type) {
+          case 'stdio': {
+            if (!('command' in config) || !config.command)
+              throw new Error('Command is required for stdio MCP server');
+            server = new MCPServerStdio({
+              name: config.name,
+              command: (config as any).command,
+              args: (config as any).args || [],
+              env: (config as any).env,
+            });
+            await (server as any).connect();
+            break;
+          }
+          case 'sse': {
+            if (!('url' in config) || !(config as any).url)
+              throw new Error('URL is required for SSE MCP server');
+            server = new MCPServerSSE({
+              name: config.name,
+              url: (config as any).url,
+              requestInit: (config as any).headers ? { headers: (config as any).headers } : undefined,
+            });
+            await (server as any).connect();
+            break;
+          }
+          case 'streamable_http': {
+            if (!('url' in config) || !(config as any).url)
+              throw new Error('URL is required for Streamable HTTP MCP server');
+            server = new MCPServerStreamableHttp({
+              name: config.name,
+              url: (config as any).url,
+              requestInit: (config as any).headers ? { headers: (config as any).headers } : undefined,
+            });
+            await (server as any).connect();
+            break;
+          }
+          default:
+            // eslint-disable-next-line no-console
+            console.warn(`Unknown MCP server type: ${(config as any).type}`);
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(`Failed to initialize MCP server ${config.name}:`, err);
+        server = undefined;
+      }
+      if (server) servers.push(server);
+    }
+
+    return servers;
+  }
+
+  private async closeMCPServers(servers: MCPServer[]): Promise<void> {
+    await Promise.allSettled(
+      servers.map(async (srv: any) => {
+        try {
+          if (typeof srv.close === 'function') {
+            await srv.close();
+          } else if (typeof srv.cleanup === 'function') {
+            await srv.cleanup();
+          } else if (typeof srv.disconnect === 'function') {
+            await srv.disconnect();
+          }
+        } catch (e) {
+          void e;
+        }
+      })
+    );
+  }
+
+  // --- I/O adapters ---------------------------------------------------------
+
+  private toAgentInputs(messages: Message[]): any[] {
+    const items: any[] = [];
+    for (const m of messages) {
+      const text = this.extractTextFromContent(m.content);
+      if (!text) continue;
+      if (m.role === 'system') {
+        // system は instructions に既に反映しているので通常は入れない
+        continue;
+      } else if (m.role === 'user') {
+        items.push(user(text));
+      } else if (m.role === 'assistant') {
+        items.push(assistant(text));
+      } else {
+        // tool/function/developer はフォールバックで user として扱う
+        items.push(user(text));
+      }
+    }
+    return items;
+  }
+
+  private collectSystemText(messages: Message[]): string {
+    return messages
+      .filter((m) => m.role === 'system')
+      .map((m) => this.extractTextFromContent(m.content))
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
+  private adaptFunctionTools(tools: UnifiedTool[] | undefined): any[] | undefined {
+    if (!tools?.length) return undefined;
+    return tools.map((t, idx) => {
+      const name =
+        (t.function?.name && String(t.function.name)) ||
+        (t.handler && t.handler.name) ||
+        `tool_${idx + 1}`;
+      return agentsTool({
+        name,
+        description: t.function?.description ?? '', // TS2322 回避: string を保証
+        parameters: (t.function?.parameters as any) ?? { type: 'object', properties: {} },
+        async execute(args: Record<string, unknown>) {
+          const res = await t.handler(args as any);
+          if (res == null) return '';
+          return typeof res === 'string' ? res : JSON.stringify(res);
+        },
+      });
+    });
+  }
+
+  private extractTextFromContent(content: MessageContent[] | string | undefined): string {
+    if (!content) return '';
+    if (typeof content === 'string') return content;
+    const chunks: string[] = [];
+    for (const c of content) {
+      if ((c as TextContent).type === 'text' && typeof (c as TextContent).text === 'string') {
+        chunks.push((c as TextContent).text);
+      }
+    }
+    return chunks.join('\n');
+  }
+
+  // --- Unified response conversion -----------------------------------------
+
   private convertAgentResultToUnified(result: any): UnifiedChatResponse {
-    // JSON serialize/deserialize to convert _generatedItems to generatedItems
-    // Check if result exists to avoid JSON parsing issues
-    const serializedResult = result ? JSON.parse(JSON.stringify(result)) : result;
-    const { text, messageContent, model, usage } = this.extractUnifiedPayload(serializedResult);
+    // 元の設計どおり、序盤でシリアライズして構造を安定化
+    const { text, messageContent, model, usage } = this.extractUnifiedPayload(result);
 
     const unifiedMessage: Message = {
       id: this.generateMessageId(),
@@ -184,12 +345,6 @@ export class OpenAIAgentProvider extends BaseProvider {
     };
   }
 
-  private extractTextFromContent(content: MessageContent[] | string): string {
-    if (typeof content === 'string') return content;
-    const textContent = content.find((c) => c.type === 'text');
-    return textContent?.text || '';
-  }
-
   /**
    * Extracts top-level `text`, `message.content` (formatted as BaseContent),
    * `model`, and `usage` from either RunResult or StreamedRunResult.
@@ -202,17 +357,17 @@ export class OpenAIAgentProvider extends BaseProvider {
     model: string;
     usage?: UsageStats;
   } {
-    if (!this.model) {
-      throw new Error('Model is not defined in provider configuration.');
-    }
-
-    const model = this.model;
     let usage: UsageStats | undefined;
     let messageContent: MessageContent[] = [];
     let text = '';
 
-    const state = result?.state;
+    const state =
+      result?.state?.toJSON
+        ? result.state.toJSON()
+        : JSON.parse(JSON.stringify(result?.state ?? {}));
     const generatedItems = state?.generatedItems;
+
+    const model = state?.lastModelResponse?.providerData?.model || '';
 
     // Extract content from generatedItems
     if (Array.isArray(generatedItems)) {
@@ -313,68 +468,7 @@ export class OpenAIAgentProvider extends BaseProvider {
     return { text, messageContent, model, usage };
   }
 
-  /**
-   * Streaming: emits chunk responses as they arrive, then a final, fully-unified message.
-   * - Chunk yields contain only the incremental text in `message.content` and `text`.
-   * - The final yield uses the completed RunResult to preserve the same shape as `chat()`.
-   *
-   * Per the Agents SDK, `run(..., { stream: true })` returns a StreamedRunResult with:
-   *   - `toTextStream()` for incremental text
-   *   - `completed` (a Promise) that resolves when the run is finished
-   */
-  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
-    validateChatRequest(request);
-
-    await this.ensureMCPServersInitialized();
-    if (!this.agent) this.agent = await this.createAgent(request);
-
-    const latestMessage = request.messages[request.messages.length - 1];
-    const normalized = this.normalizeContent(latestMessage.content);
-    const input = normalized.find((c) => c.type === 'text')?.text || 'Please continue.';
-
-    // Start the streaming run
-    const streamed = await run(this.agent, input, { stream: true });
-
-    // Stream text chunks as they arrive
-    const textStream: any = streamed.toTextStream({ compatibleWithNodeStreams: true });
-    let fullText = '';
-    for await (const chunk of textStream) {
-      const textChunk = typeof chunk === 'string' ? chunk : chunk?.toString?.('utf8') ?? '';
-      if (!textChunk) continue;
-      fullText += textChunk;
-
-      const msg: Message = {
-        id: this.generateMessageId(),
-        role: 'assistant',
-        content: [{ type: 'text', text: textChunk }],
-        createdAt: new Date(),
-      };
-
-      yield {
-        id: this.generateMessageId(),
-        model: this.model || 'gpt-4o',
-        provider: 'openai',
-        message: msg,
-        text: textChunk,
-        createdAt: new Date(),
-        // For chunk events, exposing the stream handle is acceptable
-        rawResponse: streamed,
-      };
-    }
-
-    // Wait until the run is fully complete (no more outputs/callbacks)
-    const completed = await streamed.completed;
-
-    // Build the final unified message from the COMPLETED run result (not the stream handle)
-    const finalUnified = this.convertAgentResultToUnified(completed);
-    finalUnified.finish_reason = 'stop';
-    if (fullText && !finalUnified.text) finalUnified.text = fullText;
-
-    // Prefer the completed RunResult as the raw payload for the final message
-    finalUnified.rawResponse = completed;
-
-    yield finalUnified;
-  }
+  // --- Error handling -------------------------------------------------------
 
   private handleError(error: unknown): UnifiedError {
     if (error instanceof OpenAI.APIError) {
