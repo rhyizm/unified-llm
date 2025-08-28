@@ -9,6 +9,7 @@ import {
   Tool,
 } from '../../types/unified-api';
 import { validateChatRequest } from '../../utils/validation';
+import { validateOpenAILogLevel } from '../../validators';
 import BaseProvider from '../base-provider';
 import { ResponseFormat } from '../../response-format';
 
@@ -18,12 +19,13 @@ export class OpenAICompletionProvider extends BaseProvider {
   private baseURL?: string;
   private useResponsesAPI: boolean;
   
-  constructor({ apiKey, model, baseURL, tools, options }: { 
+  constructor({ apiKey, model, baseURL, tools, options, logLevel = 'warn' }: { 
     apiKey: string, 
     model?: string, 
     baseURL?: string,
     tools?: Tool[],
-    options?: { useResponsesAPI?: boolean }
+    options?: { useResponsesAPI?: boolean },
+    logLevel?: string
   }) {
     super({ model: model, tools });
     this.apiKey = apiKey;
@@ -31,6 +33,14 @@ export class OpenAICompletionProvider extends BaseProvider {
     // カスタムbaseURLが設定されている場合は、Responses APIを無効化
     // Ollama等のOpenAI互換APIはResponses APIをサポートしていないため
     this.useResponsesAPI = baseURL ? false : (options?.useResponsesAPI || false);
+    
+    // Validate log level for OpenAI SDK (v4 doesn't support logLevel parameter)
+    // We need to use environment variable for v4
+    const validatedLogLevel = validateOpenAILogLevel(logLevel);
+    if (validatedLogLevel) {
+      process.env.OPENAI_LOG = validatedLogLevel;
+    }
+    
     this.client = new OpenAI({ 
       apiKey,
       baseURL: baseURL || undefined // OpenAI SDKにbaseURLを渡す

@@ -24,6 +24,7 @@ export interface LLMClientRuntimeConfig {
   };
   systemPrompt?: string;
   instructions?: string;
+  logLevel?: string;
 }
 
 // 保存用設定（実行時設定と同じ）
@@ -47,7 +48,8 @@ export class LLMClient {
           apiKey: config.apiKey || '',
           model: config.model, 
           baseURL: config.baseURL,
-          tools: this.tools
+          tools: this.tools,
+          logLevel: config.logLevel
         });
         break;
       case 'ollama':
@@ -64,7 +66,8 @@ export class LLMClient {
           apiKey: config.apiKey || '',
           model: config.model,
           baseURL: config.baseURL,
-          tools: this.tools
+          tools: this.tools,
+          logLevel: config.logLevel
         });
         break;
       case 'anthropic':

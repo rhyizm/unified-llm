@@ -18,6 +18,7 @@ export class OpenAIProvider extends BaseProvider {
     tools?: Tool[];
     mcpServers?: MCPServerConfig[];
     options?: { useResponsesAPI?: boolean };
+    logLevel?: string;
   }) {
     super({ model: options.model, tools: options.tools });
     
@@ -27,6 +28,7 @@ export class OpenAIProvider extends BaseProvider {
         model: options.model,
         tools: options.tools,
         mcpServers: options.mcpServers,
+        logLevel: options.logLevel,
       });
     } else {
       this.provider = new OpenAICompletionProvider({
@@ -35,6 +37,7 @@ export class OpenAIProvider extends BaseProvider {
         baseURL: options.baseURL,
         tools: options.tools,
         options: options.options,
+        logLevel: options.logLevel,
       });
     }
   }
