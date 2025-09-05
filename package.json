@@ -1,6 +1,6 @@
 {
   "name": "@unified-llm/core",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Unified LLM interface (in-memory).",
   "main": "dist/index.js",
   "type": "module",
