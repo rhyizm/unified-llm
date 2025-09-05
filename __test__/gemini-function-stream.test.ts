@@ -10,7 +10,7 @@ describe('Gemini Streaming Function Calls', () => {
   it('should handle streaming without function calls', async () => {
     
     const gemini = new GeminiProvider({
-      apiKey: process.env.GEMINI_API_KEY!,
+      apiKey: process.env.GOOGLE_API_KEY!,
       model: 'gemini-2.5-flash',
       tools: [], // No tools provided
     });
@@ -49,7 +49,7 @@ describe('Gemini Streaming Function Calls', () => {
   it('should handle streaming function calls with arguments', async () => {
     
     const gemini = new GeminiProvider({
-      apiKey: process.env.GEMINI_API_KEY!,
+      apiKey: process.env.GOOGLE_API_KEY!,
       model: 'gemini-2.5-flash',
       tools: [getAuthor],
     });
@@ -117,7 +117,7 @@ describe('Gemini Streaming Function Calls', () => {
     };
 
     const gemini = new GeminiProvider({
-      apiKey: process.env.GEMINI_API_KEY!,
+      apiKey: process.env.GOOGLE_API_KEY!,
       model: 'gemini-2.5-flash',
       tools: [getAuthorResidence],
     });
@@ -179,7 +179,7 @@ describe('Gemini Streaming Function Calls', () => {
     };
 
     const gemini = new GeminiProvider({
-      apiKey: process.env.GEMINI_API_KEY!,
+      apiKey: process.env.GOOGLE_API_KEY!,
       model: 'gemini-2.5-flash',
       tools: [getAuthorResidence],
     });

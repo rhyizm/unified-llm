@@ -12,7 +12,7 @@ describe('Gemini Tools Debug', () => {
     
     // Use the base Gemini assistant directly
     const gemini = new GeminiProvider({
-      apiKey: process.env.GEMINI_API_KEY!,
+      apiKey: process.env.GOOGLE_API_KEY!,
       tools: [getAuthor],
     });
 
@@ -68,7 +68,7 @@ describe('Gemini Tools Debug', () => {
     };
 
     const gemini = new GeminiProvider({
-      apiKey: process.env.GEMINI_API_KEY!,
+      apiKey: process.env.GOOGLE_API_KEY!,
       model: 'gemini-2.5-flash',
       tools: [getAuthorResidence],
     });
@@ -129,7 +129,7 @@ describe('Gemini Tools Debug', () => {
     };
 
     const gemini = new GeminiProvider({
-      apiKey: process.env.GEMINI_API_KEY!,
+      apiKey: process.env.GOOGLE_API_KEY!,
       model: 'gemini-2.5-flash',
       tools: [getAuthorResidence],
     });
@@ -191,7 +191,7 @@ describe('Gemini Tools Debug', () => {
     });
 
     const gemini = new GeminiProvider({
-      apiKey: process.env.GEMINI_API_KEY!,
+      apiKey: process.env.GOOGLE_API_KEY!,
       model: 'gemini-2.5-flash'
     });
 
