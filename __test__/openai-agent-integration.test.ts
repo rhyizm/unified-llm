@@ -19,7 +19,6 @@ const getTime: Tool = {
           description: 'Timezone (e.g., UTC, PST)',
         },
       },
-      required: [],
     },
   },
   args: {
