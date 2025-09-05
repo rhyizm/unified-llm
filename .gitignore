@@ -84,9 +84,10 @@ Temporary Items
 .vscode/
 files/*
 
-# Claude Code
+# Coding Support Agents
 .claude/
 CLAUDE.md
+AGENTS.md
 
 # Git configuration
 .gitconfig
@@ -100,6 +101,7 @@ CLAUDE.md
 
 # Local data directory
 data/
+.issues
 
 # pnpm
 .pnpm-store
