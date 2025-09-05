@@ -10,29 +10,21 @@ import {
 } from '../../types/unified-api';
 import { validateChatRequest } from '../../utils/validation';
 import { validateOpenAILogLevel } from '../../validators';
+import { normalizeFunctionForCompletions } from '../../utils/tool-schema';
 import BaseProvider from '../base-provider';
 import { ResponseFormat } from '../../response-format';
 
 export class OpenAICompletionProvider extends BaseProvider {
   protected client: OpenAI;
-  private apiKey: string;
-  private baseURL?: string;
-  private useResponsesAPI: boolean;
   
-  constructor({ apiKey, model, baseURL, tools, options, logLevel = 'warn' }: { 
+  constructor({ apiKey, model, baseURL, tools, logLevel = 'warn' }: { 
     apiKey: string, 
     model?: string, 
     baseURL?: string,
     tools?: Tool[],
-    options?: { useResponsesAPI?: boolean },
     logLevel?: string
   }) {
     super({ model: model, tools });
-    this.apiKey = apiKey;
-    this.baseURL = baseURL;
-    // カスタムbaseURLが設定されている場合は、Responses APIを無効化
-    // Ollama等のOpenAI互換APIはResponses APIをサポートしていないため
-    this.useResponsesAPI = baseURL ? false : (options?.useResponsesAPI || false);
     
     // Validate log level for OpenAI SDK (v4 doesn't support logLevel parameter)
     // We need to use environment variable for v4
@@ -51,11 +43,7 @@ export class OpenAICompletionProvider extends BaseProvider {
     validateChatRequest(request);
     
     try {
-      if (this.useResponsesAPI) {
-        return this.chatWithResponsesAPI(request);
-      } else {
-        return this.chatWithChatCompletions(request);
-      }
+      return this.chatWithChatCompletions(request);
     } catch (error) {
       throw this.handleError(error);
     }
@@ -125,44 +113,12 @@ export class OpenAICompletionProvider extends BaseProvider {
     return this.convertFromOpenAIFormat(response);
   }
   
-  private async chatWithResponsesAPI(request: UnifiedChatRequest): Promise<UnifiedChatResponse> {
-    // NOTE: Responses API is not yet available in the OpenAI SDK
-    // This implementation uses the raw HTTP client to call the new API
-    const responsesRequest = this.convertToResponsesAPIFormat(request);
-    
-    // Construct URL - use baseURL if provided, otherwise use OpenAI's API
-    const url = this.baseURL 
-      ? `${this.baseURL}/responses`
-      : 'https://api.openai.com/v1/responses';
-    
-    // Make raw HTTP request to the Responses API
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-        'OpenAI-Beta': 'responses-v1',
-      },
-      body: JSON.stringify(responsesRequest),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'API request failed');
-    }
-    
-    const data = await response.json();
-    return this.convertFromResponsesAPIFormat(data);
-  }
+  
   
   async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
     validateChatRequest(request);
     
-    if (this.useResponsesAPI) {
-      yield* this.streamWithResponsesAPI(request);
-    } else {
-      yield* this.streamWithChatCompletions(request);
-    }
+    yield* this.streamWithChatCompletions(request);
   }
   
   private async *streamWithChatCompletions(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
@@ -302,64 +258,7 @@ export class OpenAICompletionProvider extends BaseProvider {
     }
   }
   
-  private async *streamWithResponsesAPI(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
-    const responsesRequest = this.convertToResponsesAPIFormat(request);
-    
-    // Construct URL - use baseURL if provided, otherwise use OpenAI's API
-    const url = this.baseURL 
-      ? `${this.baseURL}/responses`
-      : 'https://api.openai.com/v1/responses';
-    
-    // Make raw HTTP request to the Responses API with streaming
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Accept': 'text/event-stream',
-        'OpenAI-Beta': 'responses-v1',
-      },
-      body: JSON.stringify({
-        ...responsesRequest,
-        stream: true,
-      }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'API request failed');
-    }
-    
-    // Parse SSE stream
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
-    
-    const decoder = new TextDecoder();
-    let buffer = '';
-    
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') continue;
-          
-          try {
-            const chunk = JSON.parse(data);
-            yield this.convertResponsesStreamChunk(chunk);
-          } catch (_e) {
-            // Ignore parse errors
-          }
-        }
-      }
-    }
-  }
+  
   
   private convertToOpenAIFormat(request: UnifiedChatRequest): OpenAI.ChatCompletionCreateParams {
     const model = request.model || this.model;
@@ -459,20 +358,20 @@ export class OpenAICompletionProvider extends BaseProvider {
       tools: [
         ...(request.tools?.map(tool => ({
           type: 'function' as const,
-          function: tool.function,
+          function: normalizeFunctionForCompletions(tool.function),
         })) || []),
         ...(this.tools?.map(func => ({
           type: 'function' as const,
-          function: func.function,
+          function: normalizeFunctionForCompletions(func.function),
         })) || []),
       ].length > 0 ? [
         ...(request.tools?.map(tool => ({
           type: 'function' as const,
-          function: tool.function,
+          function: normalizeFunctionForCompletions(tool.function),
         })) || []),
         ...(this.tools?.map(func => ({
           type: 'function' as const,
-          function: func.function,
+          function: normalizeFunctionForCompletions(func.function),
         })) || []),
       ] : undefined,
       tool_choice: request.tool_choice as any,
@@ -504,86 +403,10 @@ export class OpenAICompletionProvider extends BaseProvider {
     // Return as-is for other formats
     return responseFormat;
   }
+
+  // parameters normalization moved to utils/tool-schema.ts
   
-  private convertToResponsesAPIFormat(request: UnifiedChatRequest): any {
-    // Responses APIでは、inputに単一のメッセージまたはメッセージ配列を送信
-    // 最新のメッセージをinputとして使用し、それ以前のメッセージはprevious_response_idで参照
-    const latestMessage = request.messages[request.messages.length - 1];
-    const content = this.normalizeContent(latestMessage.content);
-    
-    let input: any;
-    
-    // 単一のテキストメッセージの場合は文字列として送信
-    if (content.length === 1 && content[0].type === 'text') {
-      input = content[0].text;
-    } else {
-      // マルチモーダルコンテンツの場合は配列として送信
-      input = content.map(c => {
-        switch (c.type) {
-          case 'text':
-            return {
-              type: 'input_text',
-              text: c.text
-            };
-          case 'image':
-            return {
-              type: 'input_image',
-              image_url: {
-                url: c.source.url || `data:${c.source.mediaType};base64,${c.source.data}`,
-              },
-            };
-          case 'tool_result':
-            // tool_resultはtool_result_contentとして送信
-            return {
-              type: 'tool_result_content',
-              toolUseId: c.toolUseId,
-              content: Array.isArray(c.content)
-                ? c.content.map(item => item.type === 'text' ? item.text : '[Non-text content]').join('\n')
-                : '[Tool result]'
-            };
-          default:
-            return {
-              type: 'input_text',
-              text: '[Unsupported content type]'
-            };
-        }
-      });
-    }
-    
-    return {
-      model: request.model || this.model,
-      input,
-      temperature: request.generationConfig?.temperature,
-      max_outputTokens: request.generationConfig?.max_tokens,
-      top_p: request.generationConfig?.top_p,
-      tools: [
-        ...(request.tools?.map(tool => ({
-          type: 'function',
-          function: tool.function,
-        })) || []),
-        ...(this.tools?.map(func => ({
-          type: 'function',
-          function: func.function,
-        })) || []),
-      ].length > 0 ? [
-        ...(request.tools?.map(tool => ({
-          type: 'function',
-          function: tool.function,
-        })) || []),
-        ...(this.tools?.map(func => ({
-          type: 'function',
-          function: func.function,
-        })) || []),
-      ] : undefined,
-      tool_choice: request.tool_choice as any,
-      text: request.generationConfig?.responseFormat ? {
-        format: request.generationConfig.responseFormat
-      } : undefined,
-      // TODO: previous_response_idの管理方法を検討
-      previous_response_id: undefined,
-      store: true,
-    };
-  }
+  /* removed: convertToResponsesAPIFormat moved to OpenAIResponsesProvider */
   
   private convertFromOpenAIFormat(response: OpenAI.ChatCompletion): UnifiedChatResponse {
     const choice = response.choices[0];
@@ -638,63 +461,7 @@ export class OpenAICompletionProvider extends BaseProvider {
     };
   }
   
-  private convertFromResponsesAPIFormat(response: any): UnifiedChatResponse {
-    // Responses APIはoutput配列にメッセージを含む
-    const outputMessage = response.output?.find((item: any) => item.type === 'message');
-    if (!outputMessage) {
-      throw new Error('No message in response output');
-    }
-    
-    const content: MessageContent[] = [];
-    
-    // outputMessage.contentから内容を抽出
-    if (outputMessage.content) {
-      outputMessage.content.forEach((item: any) => {
-        switch (item.type) {
-          case 'output_text':
-            content.push({ type: 'text', text: item.text });
-            break;
-          case 'tool_use':
-            content.push({
-              type: 'tool_use',
-              id: item.id,
-              name: item.name,
-              input: item.input,
-            });
-            break;
-        }
-      });
-    }
-    
-    const unifiedMessage: Message = {
-      id: outputMessage.id || this.generateMessageId(),
-      role: outputMessage.role || 'assistant',
-      content,
-      createdAt: new Date(),
-    };
-    
-    const usage: UsageStats | undefined = response.usage ? {
-      inputTokens: response.usage.inputTokens,
-      outputTokens: response.usage.outputTokens,
-      totalTokens: response.usage.total_tokens,
-    } : undefined;
-    
-    // Extract text for convenience field
-    const contentArray = Array.isArray(unifiedMessage.content) ? unifiedMessage.content : [{ type: 'text', text: unifiedMessage.content }];
-    const textContent = contentArray.find((c: any) => c.type === 'text');
-    
-    return {
-      id: response.id,
-      model: response.model,
-      provider: 'openai',
-      message: unifiedMessage,
-      text: (textContent as any)?.text || '',
-      usage,
-      finish_reason: outputMessage.status === 'completed' ? 'stop' : undefined,
-      createdAt: new Date(response.createdAt * 1000),
-      rawResponse: response,
-    };
-  }
+  /* removed: convertFromResponsesAPIFormat moved to OpenAIResponsesProvider */
   
   private convertStreamChunk(chunk: OpenAI.ChatCompletionChunk): UnifiedChatResponse {
     const choice = chunk.choices[0];
@@ -743,36 +510,7 @@ export class OpenAICompletionProvider extends BaseProvider {
     };
   }
   
-  private convertResponsesStreamChunk(chunk: any): UnifiedChatResponse {
-    // Responses APIのストリーミングフォーマットに対応
-    const content: MessageContent[] = [];
-    
-    if (chunk.delta?.content) {
-      content.push({ type: 'text', text: chunk.delta.content });
-    }
-    
-    const unifiedMessage: Message = {
-      id: this.generateMessageId(),
-      role: chunk.delta?.role || 'assistant',
-      content,
-      createdAt: new Date(),
-    };
-    
-    // Extract text for convenience field
-    const contentArray = Array.isArray(unifiedMessage.content) ? unifiedMessage.content : [{ type: 'text', text: unifiedMessage.content }];
-    const textContent = contentArray.find((c: any) => c.type === 'text');
-    
-    return {
-      id: chunk.id,
-      model: chunk.model,
-      provider: 'openai',
-      message: unifiedMessage,
-      text: (textContent as any)?.text || '',
-      finish_reason: chunk.status === 'completed' ? 'stop' : undefined,
-      createdAt: new Date(chunk.createdAt || Date.now()),
-      rawResponse: chunk,
-    };
-  }
+  /* removed: convertResponsesStreamChunk moved to OpenAIResponsesProvider */
   
   private handleError(error: any): UnifiedError {
     if (error instanceof OpenAI.APIError) {

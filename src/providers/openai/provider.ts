@@ -1,3 +1,4 @@
+import OpenAI from 'openai';
 import {
   UnifiedChatRequest,
   UnifiedChatResponse,
@@ -7,9 +8,10 @@ import { MCPServerConfig } from '../../types/mcp';
 import BaseProvider from '../base-provider';
 import { OpenAIAgentProvider } from './agent-provider';
 import { OpenAICompletionProvider } from './completion-provider';
+import { OpenAIResponsesProvider } from './responses-provider';
 
 export class OpenAIProvider extends BaseProvider {
-  private provider: OpenAIAgentProvider | OpenAICompletionProvider;
+  private provider: BaseProvider;
 
   constructor(options: {
     apiKey: string;
@@ -23,22 +25,35 @@ export class OpenAIProvider extends BaseProvider {
     super({ model: options.model, tools: options.tools });
     
     if (options.mcpServers) {
+      // Build a per-provider OpenAI client to inject into the Agents SDK
+      const client = new OpenAI({ apiKey: options.apiKey, baseURL: options.baseURL });
       this.provider = new OpenAIAgentProvider({
-        apiKey: options.apiKey,
+        client,
         model: options.model,
         tools: options.tools,
         mcpServers: options.mcpServers,
+        // Default to Responses API for Agents; can be extended to be configurable
+        openaiApi: 'responses',
         logLevel: options.logLevel,
       });
     } else {
-      this.provider = new OpenAICompletionProvider({
-        apiKey: options.apiKey,
-        model: options.model,
-        baseURL: options.baseURL,
-        tools: options.tools,
-        options: options.options,
-        logLevel: options.logLevel,
-      });
+      if (options.options?.useResponsesAPI) {
+        this.provider = new OpenAIResponsesProvider({
+          apiKey: options.apiKey,
+          model: options.model,
+          baseURL: options.baseURL,
+          tools: options.tools,
+          logLevel: options.logLevel,
+        });
+      } else {
+        this.provider = new OpenAICompletionProvider({
+          apiKey: options.apiKey,
+          model: options.model,
+          baseURL: options.baseURL,
+          tools: options.tools,
+          logLevel: options.logLevel,
+        });
+      }
     }
   }
 

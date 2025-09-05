@@ -8,7 +8,8 @@ import {
   MCPServerStdio,
   MCPServerSSE,
   MCPServerStreamableHttp,
-  setDefaultOpenAIKey,
+  OpenAIResponsesModel,
+  OpenAIChatCompletionsModel,
 } from '@openai/agents';
 
 import {
@@ -26,6 +27,9 @@ import { MCPServerConfig } from '../../types/mcp';
 import { validateChatRequest } from '../../utils/validation';
 import { validateOpenAILogLevel } from '../../validators';
 import BaseProvider from '../base-provider';
+import { normalizeToolParametersForAgents } from '../../utils/tool-schema';
+
+type OpenAIAPI = 'responses' | 'chat_completions';
 
 // MCP server union type for convenience
 type MCPServer = MCPServerStdio | MCPServerSSE | MCPServerStreamableHttp;
@@ -33,18 +37,24 @@ type MCPServer = MCPServerStdio | MCPServerSSE | MCPServerStreamableHttp;
 export class OpenAIAgentProvider extends BaseProvider {
   private mcpServerConfigs?: MCPServerConfig[];
   private providerTools: UnifiedTool[];
+  private openaiClient?: OpenAI;
+  private openaiApi: OpenAIAPI;
 
   constructor({
     apiKey,
+    client,
     model,
     tools = [],
     mcpServers,
+    openaiApi = 'responses',
     logLevel = 'warn',
   }: {
-    apiKey: string;
+    apiKey?: string;
+    client?: OpenAI;
     model?: string;
     tools?: UnifiedTool[];
     mcpServers?: MCPServerConfig[];
+    openaiApi?: OpenAIAPI;
     logLevel?: string;
   }) {
     super({ model, tools });
@@ -52,16 +62,16 @@ export class OpenAIAgentProvider extends BaseProvider {
     // Validate log level
     const validatedLogLevel = validateOpenAILogLevel(logLevel);
     
-    // The agents SDK doesn't expose a way to pass a custom client with logLevel
+    // The agents SDK picks up OPENAI_LOG from env as well
     if (validatedLogLevel) {
       process.env.OPENAI_LOG = validatedLogLevel;
     }
-    
-    // Set the API key for agents SDK
-    setDefaultOpenAIKey(apiKey);
-    
+
+    // Do not touch global client/key; inject per-agent model instead
+    this.openaiClient = client ?? (apiKey ? new OpenAI({ apiKey }) : undefined);
     this.mcpServerConfigs = mcpServers;
     this.providerTools = tools ?? [];
+    this.openaiApi = openaiApi;
   }
 
   // --- Public API -----------------------------------------------------------
@@ -151,6 +161,11 @@ export class OpenAIAgentProvider extends BaseProvider {
         finalUnified.text = fullText;
       }
 
+      // Ensure the final response has message content
+      if ((!finalUnified.message.content || finalUnified.message.content.length === 0) && fullText) {
+        finalUnified.message.content = [{ type: 'text', text: fullText }];
+      }
+
       finalUnified.rawResponse = completed;
 
 
@@ -183,11 +198,26 @@ export class OpenAIAgentProvider extends BaseProvider {
     const systemText = this.collectSystemText(request.messages) || 'You are a helpful assistant.';
     const effectiveModel = request.model ?? this.model ?? 'gpt-4o-mini';
 
+    // Build model instance with injected client when available (no global state)
+    let modelInstance: any;
+    if (this.openaiClient) {
+      modelInstance = this.openaiApi === 'responses'
+        ? new OpenAIResponsesModel(this.openaiClient, effectiveModel)
+        : new OpenAIChatCompletionsModel(this.openaiClient, effectiveModel);
+    } else {
+      // Explicitly use the default client resolution path when no client provided
+      modelInstance = effectiveModel;
+    }
+    // Safety check: if a client was provided but we still ended up with a string model
+    if (this.openaiClient && typeof modelInstance === 'string') {
+      throw new Error('Failed to construct OpenAI model with injected client. Ensure @openai/agents exports the model classes.');
+    }
+
     const agent = new Agent({
       name: 'Assistant',
       instructions: systemText,
       mcpServers: servers.length ? servers : undefined,
-      model: effectiveModel,
+      model: modelInstance as any,
       tools: this.adaptFunctionTools(this.providerTools),
     });
 
@@ -312,10 +342,13 @@ export class OpenAIAgentProvider extends BaseProvider {
         (t.function?.name && String(t.function.name)) ||
         (t.handler && t.handler.name) ||
         `tool_${idx + 1}`;
+      // Normalize tool parameters per Agents API schema requirements
+      const parameters = normalizeToolParametersForAgents(t.function?.parameters as any);
+      
       return agentsTool({
         name,
         description: t.function?.description ?? '',
-        parameters: (t.function?.parameters as any) ?? { type: 'object', properties: {} },
+        parameters,
         async execute(args: Record<string, unknown>) {
           const res = await t.handler(args);
           if (res == null) return '';
@@ -487,25 +520,19 @@ export class OpenAIAgentProvider extends BaseProvider {
 
   // --- Error handling -------------------------------------------------------
 
-  private handleError(error: unknown): UnifiedError {
+  private handleError(error: unknown): Error {
     if (error instanceof OpenAI.APIError) {
-      return {
-        code: error.code || 'openai_error',
-        message: error.message,
-        type: this.mapErrorType(error.status),
-        statusCode: error.status,
-        provider: 'openai',
-        details: error,
-      };
+      const e = new Error(error.message);
+      (e as any).statusCode = error.status;
+      (e as any).code = error.code || 'openai_error';
+      (e as any).type = this.mapErrorType(error.status);
+      (e as any).provider = 'openai';
+      (e as any).details = error;
+      return e;
     }
 
-    return {
-      code: 'unknown_error',
-      message: error instanceof Error ? error.message : 'Unknown error occurred',
-      type: 'api_error',
-      provider: 'openai',
-      details: error,
-    };
+    if (error instanceof Error) return error;
+    return new Error('Unknown error occurred');
   }
 
   private mapErrorType(status?: number): UnifiedError['type'] {

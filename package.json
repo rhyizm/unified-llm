@@ -17,7 +17,9 @@
   },
   "typesVersions": {
     "*": {
-      "tools": ["dist/tools/index.d.ts"]
+      "tools": [
+        "dist/tools/index.d.ts"
+      ]
     }
   },
   "files": [
@@ -69,14 +71,14 @@
     "@anthropic-ai/sdk": "^0.53.0",
     "@azure/core-auth": "^1.9.0",
     "@google/generative-ai": "^0.24.1",
-    "@openai/agents": "^0.0.17",
+    "@openai/agents": "^0.1.0",
     "debug": "^4.4.0",
     "dotenv": "^16.4.7",
-    "openai": "^4.78.1",
+    "openai": "^5.19.1",
     "uuid": "^11.0.5",
     "zod": "^3.25.7"
   },
-  "packageManager": "pnpm@10.11.0+sha512.6540583f41cc5f628eb3d9773ecee802f4f9ef9923cc45b69890fb47991d4b092964694ec3a4f738a420c918a333062c8b925d312f42e4f0c263eb603551f977",
+  "packageManager": "pnpm@10.15.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/rhyizm/unified-llm.git"
