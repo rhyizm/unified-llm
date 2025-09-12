@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import {
   UnifiedChatRequest,
   UnifiedChatResponse,
+  UnifiedStreamEventResponse,
   UnifiedError,
   Message,
   MessageContent,
@@ -115,108 +116,89 @@ export class OpenAICompletionProvider extends BaseProvider {
   
   
   
-  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
+  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedStreamEventResponse> {
     validateChatRequest(request);
     
     yield* this.streamWithChatCompletions(request);
   }
   
-  private async *streamWithChatCompletions(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
+  private async *streamWithChatCompletions(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedStreamEventResponse> {
     const openAIRequest = this.convertToOpenAIFormat(request);
     let messages = [...openAIRequest.messages];
     
-    // Keep trying to get a response until we don't get tool calls
+    // Loop until we reach a final assistant text response (no tool_calls)
     while (true) {
       const stream = await this.client.chat.completions.create({
         ...openAIRequest,
         messages,
         stream: true,
       });
-      
-      // Accumulate tool calls across chunks
+      // Phase-local accumulators
       const toolCallAccumulator: Map<number, {
         id: string;
         type: string;
-        function: {
-          name: string;
-          arguments: string;
-        };
+        function: { name: string; arguments: string };
       }> = new Map();
-      
+
       let finishReason: string | null = null;
       const assistantMessage: any = { role: 'assistant', content: null };
       let fullContent = '';
-      const bufferedChunks: OpenAI.ChatCompletionChunk[] = [];
-      let hasToolCalls = false;
-      
+      const bufferedTextDeltas: string[] = [];
+
+      // Read entire phase, buffering to decide on tool usage
       for await (const chunk of stream) {
-        // Handle tool calls in the delta
-        if (chunk.choices[0].delta.tool_calls) {
-          hasToolCalls = true;
-          for (const toolCallDelta of chunk.choices[0].delta.tool_calls) {
+        const choice = chunk.choices[0];
+        const delta = choice.delta;
+
+        // Accumulate any text deltas
+        if (delta.content) {
+          bufferedTextDeltas.push(delta.content);
+          fullContent += delta.content;
+        }
+
+        // Detect and accumulate tool call deltas
+        if (delta.tool_calls) {
+          for (const toolCallDelta of delta.tool_calls) {
             const index = toolCallDelta.index;
-            
             if (!toolCallAccumulator.has(index)) {
-              // Initialize new tool call
               toolCallAccumulator.set(index, {
                 id: toolCallDelta.id || '',
                 type: toolCallDelta.type || 'function',
                 function: {
                   name: toolCallDelta.function?.name || '',
                   arguments: toolCallDelta.function?.arguments || '',
-                }
+                },
               });
             } else {
-              // Accumulate arguments for existing tool call
-              const existing = toolCallAccumulator.get(index);
-              if (!existing) continue;
+              const existing = toolCallAccumulator.get(index)!;
               if (toolCallDelta.id) existing.id = toolCallDelta.id;
               if (toolCallDelta.function?.name) existing.function.name = toolCallDelta.function.name;
               if (toolCallDelta.function?.arguments) existing.function.arguments += toolCallDelta.function.arguments;
             }
           }
         }
-        
-        // If we detect tool calls, start buffering. Otherwise, yield immediately.
-        if (hasToolCalls) {
-          bufferedChunks.push(chunk);
-          // Accumulate text content for tool call processing
-          if (chunk.choices[0].delta.content) {
-            fullContent += chunk.choices[0].delta.content;
-          }
-        } else {
-          // No tool calls detected yet, yield chunk immediately
-          yield this.convertStreamChunk(chunk);
-        }
-        
-        // Capture finish reason
-        if (chunk.choices[0].finish_reason) {
-          finishReason = chunk.choices[0].finish_reason;
+
+        if (choice.finish_reason) {
+          finishReason = choice.finish_reason;
         }
       }
-      
-      // If we have tool calls and tools are available, execute them
+
+      // If tool calls were requested, execute and loop to next phase without emitting
       if (finishReason === 'tool_calls' && this.tools && toolCallAccumulator.size > 0) {
-        // Build the complete assistant message
         if (fullContent) {
           assistantMessage.content = fullContent;
         }
-        
-        if (toolCallAccumulator.size > 0) {
-          assistantMessage.tool_calls = Array.from(toolCallAccumulator.values());
-        }
-        
+        assistantMessage.tool_calls = Array.from(toolCallAccumulator.values());
+
         const toolResults: any[] = [];
-        
         for (const toolCall of toolCallAccumulator.values()) {
           if (toolCall.type === 'function') {
             const customFunction = this.tools.find(func => func.function.name === toolCall.function.name);
             if (customFunction) {
               try {
-                // Merge default args with function call args
                 const mergedArgs = {
                   ...(customFunction.args || {}),
-                  ...JSON.parse(toolCall.function.arguments)
+                  ...JSON.parse(toolCall.function.arguments),
                 };
                 const result = await customFunction.handler(mergedArgs);
                 toolResults.push({
@@ -234,27 +216,81 @@ export class OpenAICompletionProvider extends BaseProvider {
             }
           }
         }
-        
-        // Continue with tool results if we have any
+
         if (toolResults.length > 0) {
           messages = [
             ...messages,
             assistantMessage,
             ...toolResults,
           ];
-          // Continue the loop to get the next response
+          // Continue to next loop iteration for the final assistant answer
           continue;
         }
       }
-      
-      // If we buffered chunks due to tool calls but no tools to execute, yield them now
-      if (hasToolCalls && bufferedChunks.length > 0) {
-        for (const chunk of bufferedChunks) {
-          yield this.convertStreamChunk(chunk);
-        }
+
+      // No tool calls: emit unified streaming events by replaying buffered deltas
+      let accumulated = '';
+      // start
+      yield {
+        id: this.generateMessageId(),
+        model: (this.model || openAIRequest.model)!,
+        provider: 'openai',
+        message: {
+          id: this.generateMessageId(),
+          role: 'assistant',
+          content: [],
+          createdAt: new Date(),
+        },
+        text: '',
+        createdAt: new Date(),
+        rawResponse: undefined,
+        eventType: 'start',
+        outputIndex: 0,
+      } satisfies UnifiedStreamEventResponse;
+
+      for (const piece of bufferedTextDeltas) {
+        if (!piece) continue;
+        accumulated += piece;
+        const ev: UnifiedStreamEventResponse = {
+          id: this.generateMessageId(),
+          model: (this.model || openAIRequest.model)!,
+          provider: 'openai',
+          message: {
+            id: this.generateMessageId(),
+            role: 'assistant',
+            content: [{ type: 'text', text: piece }],
+            createdAt: new Date(),
+          },
+          text: accumulated,
+          createdAt: new Date(),
+          rawResponse: undefined,
+          eventType: 'text_delta',
+          outputIndex: 0,
+          delta: { type: 'text', text: piece },
+        };
+        yield ev;
       }
-      
-      break;
+
+      // stop
+      yield {
+        id: this.generateMessageId(),
+        model: (this.model || openAIRequest.model)!,
+        provider: 'openai',
+        message: {
+          id: this.generateMessageId(),
+          role: 'assistant',
+          content: accumulated ? [{ type: 'text', text: accumulated }] : [],
+          createdAt: new Date(),
+        },
+        text: accumulated,
+        finish_reason: finishReason as any,
+        createdAt: new Date(),
+        rawResponse: undefined,
+        eventType: 'stop',
+        outputIndex: 0,
+      } satisfies UnifiedStreamEventResponse;
+
+      break; // finished without tool calls
     }
   }
   

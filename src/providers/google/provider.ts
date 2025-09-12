@@ -9,6 +9,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   UnifiedChatRequest,
   UnifiedChatResponse,
+  UnifiedStreamEventResponse,
   UnifiedError,
   Message,
   MessageContent,
@@ -128,7 +129,7 @@ export class GeminiProvider extends BaseProvider {
     }
   }
   
-  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
+  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedStreamEventResponse> {
     validateChatRequest(request);
     
     const model = request.model || this.model;
@@ -185,34 +186,66 @@ export class GeminiProvider extends BaseProvider {
       const hasFunctionCalls = this.hasFunctionCalls(completeResponse);
       
       if (!hasFunctionCalls) {
-        // No function calls, yield all collected chunks
+        // No function calls, emit unified events from collected chunks
+        const pieces: string[] = [];
         if (chunks.length === 1) {
-          // If only one chunk, split it into multiple chunks for proper streaming simulation
           const singleChunk = chunks[0];
           const text = singleChunk.text();
           const words = text.split(' ');
-          const chunkSize = Math.max(1, Math.floor(words.length / 2)); // Create at least 2 chunks
-          
+          const chunkSize = Math.max(1, Math.floor(words.length / 2));
           for (let i = 0; i < words.length; i += chunkSize) {
             const chunkWords = words.slice(i, i + chunkSize);
             const chunkText = chunkWords.join(' ') + (i + chunkSize < words.length ? ' ' : '');
-            
-            const mockChunk = {
-              text: () => chunkText,
-              candidates: [{
-                content: {
-                  parts: [{ text: chunkText }]
-                }
-              }]
-            };
-            
-            yield this.convertStreamChunk(mockChunk);
+            pieces.push(chunkText);
           }
         } else {
           for (const chunk of chunks) {
-            yield this.convertStreamChunk(chunk);
+            const text = chunk.text();
+            if (text) pieces.push(text);
           }
         }
+
+        yield {
+          id: this.generateMessageId(),
+          model: model,
+          provider: 'google',
+          message: { id: this.generateMessageId(), role: 'assistant', content: [], createdAt: new Date() },
+          text: '',
+          createdAt: new Date(),
+          rawResponse: undefined,
+          eventType: 'start',
+          outputIndex: 0,
+        } satisfies UnifiedStreamEventResponse;
+
+        let acc = '';
+        for (const p of pieces) {
+          acc += p;
+          const ev: UnifiedStreamEventResponse = {
+            id: this.generateMessageId(),
+            model: model,
+            provider: 'google',
+            message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: p }], createdAt: new Date() },
+            text: acc,
+            createdAt: new Date(),
+            rawResponse: undefined,
+            eventType: 'text_delta',
+            outputIndex: 0,
+            delta: { type: 'text', text: p },
+          };
+          yield ev;
+        }
+
+        yield {
+          id: this.generateMessageId(),
+          model: model,
+          provider: 'google',
+          message: { id: this.generateMessageId(), role: 'assistant', content: acc ? [{ type: 'text', text: acc }] : [], createdAt: new Date() },
+          text: acc,
+          createdAt: new Date(),
+          rawResponse: undefined,
+          eventType: 'stop',
+          outputIndex: 0,
+        } satisfies UnifiedStreamEventResponse;
         break;
       } else {
         // Function calls detected, execute them
@@ -255,21 +288,47 @@ export class GeminiProvider extends BaseProvider {
           const words = resultText.split(' ');
           const chunkSize = Math.max(1, Math.floor(words.length / 3)); // Create at least 3 chunks
           
+          let acc = '';
+          yield {
+            id: this.generateMessageId(),
+            model: model,
+            provider: 'google',
+            message: { id: this.generateMessageId(), role: 'assistant', content: [], createdAt: new Date() },
+            text: '',
+            createdAt: new Date(),
+            rawResponse: undefined,
+            eventType: 'start',
+            outputIndex: 0,
+          } satisfies UnifiedStreamEventResponse;
           for (let i = 0; i < words.length; i += chunkSize) {
             const chunkWords = words.slice(i, i + chunkSize);
             const chunkText = chunkWords.join(' ') + (i + chunkSize < words.length ? ' ' : '');
-            
-            const mockChunk = {
-              text: () => chunkText,
-              candidates: [{
-                content: {
-                  parts: [{ text: chunkText }]
-                }
-              }]
+            acc += chunkText;
+            const ev: UnifiedStreamEventResponse = {
+              id: this.generateMessageId(),
+              model: model,
+              provider: 'google',
+              message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: chunkText }], createdAt: new Date() },
+              text: acc,
+              createdAt: new Date(),
+              rawResponse: undefined,
+              eventType: 'text_delta',
+              outputIndex: 0,
+              delta: { type: 'text', text: chunkText },
             };
-            
-            yield this.convertStreamChunk(mockChunk);
+            yield ev;
           }
+          yield {
+            id: this.generateMessageId(),
+            model: model,
+            provider: 'google',
+            message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: acc }], createdAt: new Date() },
+            text: acc,
+            createdAt: new Date(),
+            rawResponse: undefined,
+            eventType: 'stop',
+            outputIndex: 0,
+          } satisfies UnifiedStreamEventResponse;
           
           // Break out of the loop after streaming function results
           break;

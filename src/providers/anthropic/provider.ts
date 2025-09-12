@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import {
   UnifiedChatRequest,
   UnifiedChatResponse,
+  UnifiedStreamEventResponse,
   UnifiedError,
   Message,
   MessageContent,
@@ -93,7 +94,7 @@ export class AnthropicProvider extends BaseProvider {
     }
   }
   
-  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
+  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedStreamEventResponse> {
     validateChatRequest(request);
     
     const anthropicRequest = await this.convertToAnthropicFormat(request);
@@ -211,12 +212,13 @@ export class AnthropicProvider extends BaseProvider {
         }
       }
       
-      // Second pass: yield chunks
+      // Second pass: collect text pieces
+      const pieces: string[] = [];
       if (!hasToolUse) {
-        // No tool use, stream text deltas immediately
+        // No tool use, collect text deltas
         for (const chunk of allChunks) {
           if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-            yield this.convertStreamChunk(chunk);
+            pieces.push(chunk.delta.text);
           }
         }
       } else {
@@ -229,25 +231,54 @@ export class AnthropicProvider extends BaseProvider {
             const chunkSize = 20; // Approximate chunk size
             for (let i = 0; i < text.length; i += chunkSize) {
               const chunkText = text.slice(i, Math.min(i + chunkSize, text.length));
-              yield {
-                id: this.generateMessageId(),
-                model: this.model || 'claude-3-5-haiku-latest',
-                provider: 'anthropic',
-                message: {
-                  id: this.generateMessageId(),
-                  role: 'assistant',
-                  content: [{ type: 'text', text: chunkText }],
-                  createdAt: new Date(),
-                },
-                text: chunkText,
-                createdAt: new Date(),
-                rawResponse: null,
-              };
+              pieces.push(chunkText);
             }
           }
         }
       }
-      
+      // Emit unified events
+      let acc = '';
+      yield {
+        id: this.generateMessageId(),
+        model: this.model!,
+        provider: 'anthropic',
+        message: { id: this.generateMessageId(), role: 'assistant', content: [], createdAt: new Date() },
+        text: '',
+        createdAt: new Date(),
+        rawResponse: null,
+        eventType: 'start',
+        outputIndex: 0,
+      } satisfies UnifiedStreamEventResponse;
+
+      for (const p of pieces) {
+        acc += p;
+        const ev: UnifiedStreamEventResponse = {
+          id: this.generateMessageId(),
+          model: this.model!,
+          provider: 'anthropic',
+          message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: p }], createdAt: new Date() },
+          text: acc,
+          createdAt: new Date(),
+          rawResponse: null,
+          eventType: 'text_delta',
+          outputIndex: 0,
+          delta: { type: 'text', text: p },
+        };
+        yield ev;
+      }
+
+      yield {
+        id: this.generateMessageId(),
+        model: this.model!,
+        provider: 'anthropic',
+        message: { id: this.generateMessageId(), role: 'assistant', content: acc ? [{ type: 'text', text: acc }] : [], createdAt: new Date() },
+        text: acc,
+        createdAt: new Date(),
+        rawResponse: null,
+        eventType: 'stop',
+        outputIndex: 0,
+      } satisfies UnifiedStreamEventResponse;
+
       break;
     }
   }

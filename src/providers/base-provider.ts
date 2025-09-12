@@ -1,6 +1,7 @@
 import {
   UnifiedChatRequest,
   UnifiedChatResponse,
+  UnifiedStreamEventResponse,
   MessageContent,
   ToolUseContent,
   Tool,
@@ -22,7 +23,7 @@ abstract class BaseProvider {
   }
   
   abstract chat(request: UnifiedChatRequest): Promise<UnifiedChatResponse>;
-  abstract stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse>;
+  abstract stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedStreamEventResponse>;
   
   // 共通のヘルパーメソッド
   protected generateMessageId(): string {

@@ -1,6 +1,7 @@
 import {
   UnifiedChatRequest,
   UnifiedChatResponse,
+  UnifiedStreamEventResponse,
   UnifiedError,
   Message,
   MessageContent,
@@ -43,7 +44,7 @@ export class OpenAIResponsesProvider extends BaseProvider {
     }
   }
 
-  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
+  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedStreamEventResponse> {
     validateChatRequest(request);
     try {
       yield* this.streamWithResponsesAPI(request);
@@ -82,7 +83,7 @@ export class OpenAIResponsesProvider extends BaseProvider {
     return this.convertFromResponsesAPIFormat(data);
   }
 
-  private async *streamWithResponsesAPI(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
+  private async *streamWithResponsesAPI(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedStreamEventResponse> {
     const responsesRequest = this.convertToResponsesAPIFormat(request);
 
     const url = this.baseURL
@@ -118,7 +119,10 @@ export class OpenAIResponsesProvider extends BaseProvider {
     const decoder = new TextDecoder();
     let buffer = '';
 
-    while (true) {
+    // Buffer deltas then emit unified events: start -> text_delta* -> stop
+    const textPieces: string[] = [];
+    let doneReading = false;
+    while (!doneReading) {
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -131,23 +135,61 @@ export class OpenAIResponsesProvider extends BaseProvider {
         if (!trimmed) continue;
         if (trimmed.startsWith('data:')) {
           const data = trimmed.slice(5).trim();
-          if (data === '[DONE]') break;
+          if (data === '[DONE]') { doneReading = true; break; }
           try {
             const json = JSON.parse(data);
-            if (json.type === 'response.output_text.delta' || json.delta?.content) {
-              yield this.convertResponsesStreamChunk(json);
-            }
-            if (json.type === 'response.completed' || json.type === 'response' || json.output) {
-              if (json.output) {
-                yield this.convertFromResponsesAPIFormat(json);
-              }
+            if (json.type === 'response.output_text.delta' && json.delta?.text) {
+              textPieces.push(json.delta.text);
             }
           } catch {
-            // Ignore malformed chunk
+            // ignore
           }
         }
       }
     }
+
+    // emit events
+    yield {
+      id: this.generateMessageId(),
+      model: responsesRequest.model || this.model!,
+      provider: 'openai',
+      message: { id: this.generateMessageId(), role: 'assistant', content: [], createdAt: new Date() },
+      text: '',
+      createdAt: new Date(),
+      rawResponse: undefined,
+      eventType: 'start',
+      outputIndex: 0,
+    } satisfies UnifiedStreamEventResponse;
+
+    let acc = '';
+    for (const piece of textPieces) {
+      acc += piece;
+      const ev: UnifiedStreamEventResponse = {
+        id: this.generateMessageId(),
+        model: responsesRequest.model || this.model!,
+        provider: 'openai',
+        message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: piece }], createdAt: new Date() },
+        text: acc,
+        createdAt: new Date(),
+        rawResponse: undefined,
+        eventType: 'text_delta',
+        outputIndex: 0,
+        delta: { type: 'text', text: piece },
+      };
+      yield ev;
+    }
+
+    yield {
+      id: this.generateMessageId(),
+      model: responsesRequest.model || this.model!,
+      provider: 'openai',
+      message: { id: this.generateMessageId(), role: 'assistant', content: acc ? [{ type: 'text', text: acc }] : [], createdAt: new Date() },
+      text: acc,
+      createdAt: new Date(),
+      rawResponse: undefined,
+      eventType: 'stop',
+      outputIndex: 0,
+    } satisfies UnifiedStreamEventResponse;
   }
 
   private convertToResponsesAPIFormat(request: UnifiedChatRequest): any {

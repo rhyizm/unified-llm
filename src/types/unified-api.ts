@@ -260,3 +260,21 @@ export interface UnifiedChatResponse {
   createdAt: Date;
   rawResponse?: unknown;
 }
+
+// Unified streaming event model (docs/streaming-unification.md)
+export type StreamEventType =
+  | 'start'
+  | 'text_delta'
+  | 'stop'
+  | 'error';
+
+export type StreamDelta =
+  | { type: 'text'; text: string }
+  | { type: 'error'; code: string; message: string; errType?: string; details?: unknown };
+
+export type UnifiedStreamEventResponse = Omit<UnifiedChatResponse, 'createdAt'> & {
+  createdAt?: Date;
+  eventType: StreamEventType;
+  outputIndex: number;
+  delta?: StreamDelta;
+};

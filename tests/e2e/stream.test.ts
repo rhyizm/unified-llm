@@ -69,15 +69,17 @@ describe('Stream E2E Tests', () => {
 
       it('should stream simple text response', async () => {
         const chunks: any[] = [];
-        
-        for await (const chunk of client.stream({
+
+        const streamEvent = client.stream({
           messages: [
             {
               role: 'user',
-              content: 'Count from 1 to 5, one number at a time'
+              content: 'Could you count from 5 to 1?'
             }
           ]
-        })) {
+        });
+        
+        for await (const chunk of streamEvent) {
           chunks.push(chunk);
         }
 
@@ -86,7 +88,9 @@ describe('Stream E2E Tests', () => {
         let fullContent = '';
         for (const chunk of chunks) {
           if (chunk.message?.content) {
-            fullContent += getTextFromContent(chunk.message.content);
+            if (chunk.eventType !== 'stop') {
+              fullContent += getTextFromContent(chunk.message.content);
+            }
           }
         }
 
@@ -99,35 +103,27 @@ describe('Stream E2E Tests', () => {
 
       it('should stream with delta updates', async () => {
         const chunks: any[] = [];
-        
-        for await (const chunk of client.stream({
+
+        const streamEvent = client.stream({
           messages: [
             {
               role: 'user',
-              content: 'Write the word "streaming" letter by letter'
+              content: 'Could you count from 1 to 10?'
             }
           ]
-        })) {
+        });
+
+        for await (const chunk of streamEvent) {
           chunks.push(chunk);
         }
 
-        expect(chunks.length).toBeGreaterThan(1);
-        
-        const firstChunk = chunks[0];
-        expect(firstChunk).toBeDefined();
-        expect(firstChunk.message).toBeDefined();
-        
-        const lastChunk = chunks[chunks.length - 1];
-        // Usage might be in the last chunk or not provided during streaming
-        if (lastChunk.usage) {
-          expect(lastChunk.usage.totalTokens).toBeGreaterThan(0);
-        }
+        expect(chunks.length).toBeGreaterThan(2);        
       }, 30000);
 
       it('should handle streaming with system prompt', async () => {
         const clientWithSystem = new LLMClient({
           ...config,
-          systemPrompt: 'You are a helpful assistant that responds concisely.'
+          systemPrompt: 'You are an LLM tester temporarily launched during the stream response testing of Unified LLM. Unified LLM was developed by rhyizm <rhyizm@gmail.com>.'
         });
 
         const chunks: any[] = [];
@@ -136,7 +132,7 @@ describe('Stream E2E Tests', () => {
           messages: [
             {
               role: 'user',
-              content: 'Say "Hello Stream" exactly'
+              content: 'Who created Unified LLM?'
             }
           ]
         })) {
@@ -148,11 +144,13 @@ describe('Stream E2E Tests', () => {
         let fullContent = '';
         for (const chunk of chunks) {
           if (chunk.message?.content) {
-            fullContent += getTextFromContent(chunk.message.content);
+            if (chunk.eventType !== 'stop') {
+              fullContent += getTextFromContent(chunk.message.content);
+            }
           }
         }
 
-        expect(fullContent.toLowerCase()).toContain('hello stream');
+        expect(fullContent.toLowerCase()).toContain('rhyizm');
       }, 30000);
 
       it('should handle streaming errors gracefully', async () => {

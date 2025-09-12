@@ -15,6 +15,7 @@ import {
 import {
   UnifiedChatRequest,
   UnifiedChatResponse,
+  UnifiedStreamEventResponse,
   UnifiedError,
   Message,
   MessageContent,
@@ -107,7 +108,7 @@ export class OpenAIAgentProvider extends BaseProvider {
   /**
    * Streaming: emits chunk responses as they arrive, then a final, fully-unified message.
    */
-  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
+  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedStreamEventResponse> {
     validateChatRequest(request);
 
     const { agent, cleanup, effectiveModel } = await this.buildEphemeralAgent(request);
@@ -121,28 +122,37 @@ export class OpenAIAgentProvider extends BaseProvider {
       const textStream = streamed.toTextStream({ compatibleWithNodeStreams: true });
 
       let fullText = '';
+      // Start event
+      yield {
+        id: this.generateMessageId(),
+        model: effectiveModel,
+        provider: 'openai',
+        message: { id: this.generateMessageId(), role: 'assistant', content: [], createdAt: new Date() },
+        text: '',
+        createdAt: new Date(),
+        rawResponse: streamed,
+        eventType: 'start',
+        outputIndex: 0,
+      } satisfies UnifiedStreamEventResponse;
       try {
         for await (const chunk of textStream) {
           const textChunk = typeof chunk === 'string' ? chunk : chunk?.toString?.('utf8') ?? '';
           if (!textChunk) continue;
           fullText += textChunk;
 
-          const msg: Message = {
-            id: this.generateMessageId(),
-            role: 'assistant',
-            content: [{ type: 'text', text: textChunk }],
-            createdAt: new Date(),
-          };
-
-          yield {
+          const ev: UnifiedStreamEventResponse = {
             id: this.generateMessageId(),
             model: effectiveModel,
             provider: 'openai',
-            message: msg,
-            text: textChunk,
+            message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: textChunk }], createdAt: new Date() },
+            text: fullText,
             createdAt: new Date(),
             rawResponse: streamed,
+            eventType: 'text_delta',
+            outputIndex: 0,
+            delta: { type: 'text', text: textChunk },
           };
+          yield ev;
         }
       } finally {
         try {
@@ -155,21 +165,18 @@ export class OpenAIAgentProvider extends BaseProvider {
       }
 
       const completed = await streamed.completed;
-      const finalUnified = this.convertAgentResultToUnified(completed);
-      finalUnified.finish_reason = 'stop';
-      if (fullText && !finalUnified.text){
-        finalUnified.text = fullText;
-      }
-
-      // Ensure the final response has message content
-      if ((!finalUnified.message.content || finalUnified.message.content.length === 0) && fullText) {
-        finalUnified.message.content = [{ type: 'text', text: fullText }];
-      }
-
-      finalUnified.rawResponse = completed;
-
-
-      yield finalUnified;
+      // Stop event
+      yield {
+        id: this.generateMessageId(),
+        model: effectiveModel,
+        provider: 'openai',
+        message: { id: this.generateMessageId(), role: 'assistant', content: fullText ? [{ type: 'text', text: fullText }] : [], createdAt: new Date() },
+        text: fullText,
+        createdAt: new Date(),
+        rawResponse: completed,
+        eventType: 'stop',
+        outputIndex: 0,
+      } satisfies UnifiedStreamEventResponse;
     } finally {
       try {
         ac.abort();

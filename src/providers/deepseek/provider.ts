@@ -1,6 +1,7 @@
 import {
   UnifiedChatRequest,
   UnifiedChatResponse,
+  UnifiedStreamEventResponse,
   UnifiedError,
   Message,
   MessageContent,
@@ -89,7 +90,7 @@ export class DeepSeekProvider extends BaseProvider {
     }
   }
   
-  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
+  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedStreamEventResponse> {
     validateChatRequest(request);
     
     const deepseekRequest = this.convertToDeepSeekFormat(request);
@@ -117,6 +118,7 @@ export class DeepSeekProvider extends BaseProvider {
     const decoder = new TextDecoder();
     let buffer = '';
     
+    const pieces: string[] = [];
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -132,13 +134,58 @@ export class DeepSeekProvider extends BaseProvider {
           
           try {
             const chunk = JSON.parse(data);
-            yield this.convertStreamChunk(chunk);
+            const choice = chunk.choices?.[0];
+            const deltaText = choice?.delta?.content;
+            if (deltaText) pieces.push(deltaText);
           } catch (_e) {
             // Ignore parse errors
           }
         }
       }
     }
+
+    // emit events
+    yield {
+      id: this.generateMessageId(),
+      model: (this.model || 'deepseek-chat'),
+      provider: 'deepseek',
+      message: { id: this.generateMessageId(), role: 'assistant', content: [], createdAt: new Date() },
+      text: '',
+      createdAt: new Date(),
+      rawResponse: undefined,
+      eventType: 'start',
+      outputIndex: 0,
+    } satisfies UnifiedStreamEventResponse;
+
+    let acc = '';
+    for (const p of pieces) {
+      acc += p;
+      const ev: UnifiedStreamEventResponse = {
+        id: this.generateMessageId(),
+        model: (this.model || 'deepseek-chat'),
+        provider: 'deepseek',
+        message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: p }], createdAt: new Date() },
+        text: acc,
+        createdAt: new Date(),
+        rawResponse: undefined,
+        eventType: 'text_delta',
+        outputIndex: 0,
+        delta: { type: 'text', text: p },
+      };
+      yield ev;
+    }
+
+    yield {
+      id: this.generateMessageId(),
+      model: (this.model || 'deepseek-chat'),
+      provider: 'deepseek',
+      message: { id: this.generateMessageId(), role: 'assistant', content: acc ? [{ type: 'text', text: acc }] : [], createdAt: new Date() },
+      text: acc,
+      createdAt: new Date(),
+      rawResponse: undefined,
+      eventType: 'stop',
+      outputIndex: 0,
+    } satisfies UnifiedStreamEventResponse;
   }
   
   private async makeAPICall(endpoint: string, payload: any): Promise<any> {

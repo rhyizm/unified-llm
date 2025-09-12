@@ -3,7 +3,7 @@ import { OpenAIProvider, OpenAICompletionProvider } from './providers/openai';
 import { AnthropicProvider } from './providers/anthropic';
 import { GeminiProvider } from './providers/google';
 import { DeepSeekProvider } from './providers/deepseek';
-import { ToolDefinition, Tool } from './types/unified-api';
+import { ToolDefinition, Tool, UnifiedStreamEventResponse } from './types/unified-api';
 
 // LLMClient構成オプション（実行時用）
 export interface LLMClientRuntimeConfig {
@@ -323,7 +323,7 @@ export class LLMClient {
   }
 
   // ストリーミングチャット
-  async *stream(request: any) {
+  async *stream(request: any): AsyncIterableIterator<UnifiedStreamEventResponse> {
     const tools = this.generateToolDefinitions();
     
     // システムプロンプトを注入（存在する場合）

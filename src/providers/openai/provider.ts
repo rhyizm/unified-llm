@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import {
   UnifiedChatRequest,
   UnifiedChatResponse,
+  UnifiedStreamEventResponse,
   Tool,
 } from '../../types/unified-api';
 import { MCPServerConfig } from '../../types/mcp';
@@ -61,7 +62,7 @@ export class OpenAIProvider extends BaseProvider {
     return this.provider.chat(request);
   }
 
-  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedChatResponse> {
+  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedStreamEventResponse> {
     yield* this.provider.stream(request);
   }
 }
