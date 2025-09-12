@@ -2,6 +2,7 @@
 import { OpenAICompletionProvider } from '../openai';
 import OpenAI, { AzureOpenAI } from 'openai';
 import { TokenCredential } from '@azure/core-auth';
+import { UnifiedChatRequest, UnifiedChatResponse, UnifiedStreamEventResponse } from '../../types/unified-api';
 
 /* Azure 固有の接続情報 */
 interface AzureAuth {
@@ -82,5 +83,17 @@ export class AzureOpenAIProvider extends OpenAICompletionProvider {
         return t.token;
       },
     });
+  }
+
+  // Override to tag provider as 'azure'
+  async chat(request: UnifiedChatRequest): Promise<UnifiedChatResponse> {
+    const res = await super.chat(request);
+    return { ...res, provider: 'azure' as const };
+  }
+
+  async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedStreamEventResponse> {
+    for await (const ev of super.stream(request)) {
+      yield { ...ev, provider: 'azure' as const } satisfies UnifiedStreamEventResponse;
+    }
   }
 }

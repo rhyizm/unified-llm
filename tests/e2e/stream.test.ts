@@ -42,10 +42,11 @@ const providers = [
     name: 'Azure OpenAI',
     config: {
       provider: 'azure' as const,
-      apiKey: process.env.AZURE_OPENAI_API_KEY,
-      endpoint: process.env.AZURE_OPENAI_ENDPOINT,
-      deploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_NAME,
-      model: 'gpt-4o-mini'
+      apiKey: process.env.AZURE_OPENAI_KEY,
+      baseURL: process.env.AZURE_OPENAI_ENDPOINT,
+      deploymentName: process.env.AZURE_OPENAI_DEPLOYMENT,
+      apiVersion: process.env.AZURE_OPENAI_API_VERSION,
+      model: 'gpt-5-nano'
     }
   }
 ];
@@ -58,9 +59,9 @@ describe('Stream E2E Tests', () => {
   };
 
   providers.forEach(({ name, config }) => {
-    const shouldSkip = !config.apiKey || (config.provider === 'azure' && (!config.endpoint || !config.deploymentName));
+    const shouldSkip = !config.apiKey || (config.provider === 'azure' && (!config.baseURL || !config.deploymentName));
     
-    describe.skipIf(shouldSkip)(`${name} Provider`, () => {
+    describe(`${name} Provider`, () => {
       let client: LLMClient;
 
       beforeAll(() => {

@@ -147,8 +147,12 @@ export class OpenAICompletionProvider extends BaseProvider {
 
       // Read entire phase, buffering to decide on tool usage
       for await (const chunk of stream) {
-        const choice = chunk.choices[0];
-        const delta = choice.delta;
+        // Some providers (e.g., Azure variants) may emit non-choice keepalive/meta chunks
+        const choice = (chunk as any)?.choices?.[0];
+        if (!choice) {
+          continue; // skip chunks without choices
+        }
+        const delta = (choice as any).delta || {};
 
         // Accumulate any text deltas
         if (delta.content) {

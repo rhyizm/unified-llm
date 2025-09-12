@@ -1,5 +1,6 @@
 import BaseProvider from './providers/base-provider';
 import { OpenAIProvider, OpenAICompletionProvider } from './providers/openai';
+import { AzureOpenAIProvider } from './providers/azure';
 import { AnthropicProvider } from './providers/anthropic';
 import { GeminiProvider } from './providers/google';
 import { DeepSeekProvider } from './providers/deepseek';
@@ -12,6 +13,9 @@ export interface LLMClientRuntimeConfig {
   apiKey?: string;
   model?: string;
   baseURL?: string;
+  // Azure specific (optional unless provider==='azure')
+  deploymentName?: string; // Azure deployment name
+  apiVersion?: string; // Azure API version, defaults handled in provider
   tools?: Tool[];
   generationConfig?: {
     temperature?: number;
@@ -100,6 +104,29 @@ export class LLMClient {
           tools: this.tools 
         });
         break;
+      case 'azure':
+        if (!config.apiKey) {
+          throw new Error('API key is required for Azure provider');
+        }
+        if (!config.baseURL) {
+          throw new Error('baseURL (or endpoint) is required for Azure provider');
+        }
+        if (!config.deploymentName) {
+          throw new Error('deploymentName is required for Azure provider');
+        }
+        this.baseProvider = new AzureOpenAIProvider(
+          {
+            endpoint: (config.baseURL)!,
+            deployment: config.deploymentName,
+            apiVersion: config.apiVersion,
+          },
+          {
+            apiKey: config.apiKey,
+            tools: this.tools,
+            logLevel: config.logLevel,
+          }
+        );
+        break;
       default:
         throw new Error(`Unsupported provider: ${config.provider}`);
     }
@@ -107,7 +134,7 @@ export class LLMClient {
 
   // 静的ファクトリーメソッド（後方互換性のため）
   static create(
-    provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'ollama' | 'openai-compatible',
+    provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'azure' | 'ollama' | 'openai-compatible',
     apiKey: string,
     model: string
   ): BaseProvider {
@@ -117,6 +144,8 @@ export class LLMClient {
       case 'ollama':
       case 'openai-compatible':
         throw new Error(`${provider} provider requires baseURL. Use new LLMClient() constructor instead.`);
+      case 'azure':
+        throw new Error('azure provider requires endpoint and deploymentName. Use new LLMClient() constructor instead.');
       case 'anthropic':
         return new AnthropicProvider({ apiKey, model });
       case 'google':
