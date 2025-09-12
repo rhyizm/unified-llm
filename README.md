@@ -66,7 +66,7 @@ console.log(JSON.stringify(claudeResponse, null, 2));
 
 ## Streaming Responses
 
-The streaming feature allows you to receive responses in real-time as they are generated, providing a better user experience for longer responses.
+Streaming now uses an event-based streaming API across providers. Instead of provider-specific chunk shapes, you receive structured events with an `eventType` and optional `delta`. This replaces the legacy streaming example and is not backward compatible. See docs/streaming-unification.md for the full spec.
 
 ### Basic Streaming Example
 
@@ -91,17 +91,26 @@ const stream = await client.stream({
   ],
 });
 
-let fullResponse = '';
-
-for await (const chunk of stream) {
-  const content = chunk.message.content[0];
-  if (content && typeof content !== 'string' && content.type === 'text') {
-    fullResponse += content.text;
-    console.log(content.text); // Print each chunk as it arrives
+let acc = '';
+for await (const ev of stream) {
+  switch (ev.eventType) {
+    case 'start':
+      // initialize UI state if needed
+      break;
+    case 'text_delta':
+      // ev.delta?.text is the incremental piece; ev.text is the accumulator
+      process.stdout.write(ev.delta?.text ?? '');
+      acc = ev.text;
+      break;
+    case 'stop':
+      console.log('\nComplete response:', ev.text);
+      // ev.rawResponse contains provider-native final response (or stream data)
+      break;
+    case 'error':
+      console.error('Stream error:', ev.delta);
+      break;
   }
 }
-
-console.log('Complete response:', fullResponse);
 ```
 
 ## Function Calling
@@ -164,7 +173,7 @@ console.log(response.message.content);
 
 ### Streaming with Function Calls
 
-When using tools/functions, streaming will include both text content and function call information:
+During streaming, tool calls are handled provider-side for you. When a model requests tool input mid-stream, the provider accumulates the tool call, executes your registered tool handlers, and continues streaming the final assistant text. You only observe text events: `start → text_delta* → stop`.
 
 ```typescript
 import { LLMClient } from '@unified-llm/core';
@@ -204,15 +213,12 @@ const stream = await client.stream({
   }]
 });
 
-for await (const chunk of stream) {
-  if (chunk.message.content) {
-    chunk.message.content.forEach(content => {
-      if (content.type === 'text') {
-        console.log('Text:', content.text);
-      } else if (content.type === 'tool_use') {
-        console.log('Tool called:', content.name, 'with args:', content.input);
-      }
-    });
+for await (const ev of stream) {
+  if (ev.eventType === 'text_delta') {
+    process.stdout.write(ev.delta?.text ?? '');
+  }
+  if (ev.eventType === 'stop') {
+    console.log('\nFinal text:', ev.text);
   }
 }
 ```
@@ -472,7 +478,7 @@ const deepseekResponse = await deepseek.chat(request);
 
 ### Multi-Provider Streaming
 
-Streaming works consistently across all supported providers:
+Streaming works consistently across all supported providers using the unified event model:
 
 ```typescript
 const providers = [
@@ -499,10 +505,9 @@ for (const config of providers) {
     }]
   });
 
-  for await (const chunk of stream) {
-    const content = chunk.message.content[0];
-    if (content && typeof content !== 'string' && content.type === 'text') {
-      process.stdout.write(content.text); // Stream output without newlines
+  for await (const ev of stream) {
+    if (ev.eventType === 'text_delta') {
+      process.stdout.write(ev.delta?.text ?? '');
     }
   }
 }
@@ -535,7 +540,7 @@ All providers return responses in a consistent format, making it easy to switch 
     outputTokens: 10,
     totalTokens: 82
   },
-  finishReason: "stop",
+  finish_reason: "stop",
   createdAt: "2025-06-24T09:51:18.000Z",
   rawResponse: {
     /* Original response from the provider (as returned by OpenAI, Anthropic, Google, DeepSeek, etc.) */
@@ -545,7 +550,7 @@ All providers return responses in a consistent format, making it easy to switch 
 
 ### Stream Response Format
 
-Each streaming chunk follows the same unified format as regular responses:
+Each streaming event mirrors `UnifiedChatResponse` with a few additions:
 
 ```typescript
 {
@@ -563,25 +568,24 @@ Each streaming chunk follows the same unified format as regular responses:
     ],
     createdAt: "2025-01-01T00:00:00.000Z"
   },
-  usage: {
-    inputTokens: 50,
-    outputTokens: 5,
-    totalTokens: 55
-  },
-  finishReason: null, // "stop" on final chunk
-  createdAt: "2025-01-01T00:00:00.000Z",
-  rawResponse: {
-    // Original response from the provider (as returned by OpenAI, Anthropic, Google, DeepSeek, etc.)
-  }
+  // createdAt is optional in streaming events
+  eventType: "text_delta", // one of: start | text_delta | stop | error
+  outputIndex: 0,
+  delta: { type: "text", text: "Chunk of text..." }
 }
+
+On the final `stop` event:
+- `finish_reason` may be present (e.g., "stop", "length").
+- `usage` may be present when available.
+- `rawResponse` contains the provider-native final result. For streaming providers that don’t return a single object, it contains native stream data (e.g., an array of SSE chunks). For Gemini, it includes both `{ stream, response }`.
 ```
 
 Key benefits:
 - **Consistent structure** across all providers (OpenAI, Anthropic, Google, DeepSeek, Azure)
-- **Standardized content format** with type-based content blocks
-- **Unified usage tracking** for token counting across providers
+- **Event-based streaming** with `eventType` and `delta` for incremental text
+- **Unified usage tracking** when the provider reports it
 - **Provider identification** to know which service generated the response
-- **Raw response access** for provider-specific features
+- **Raw response access** on the final chunk for provider-specific features
 
 ## Persistent LLM Client Configuration
 

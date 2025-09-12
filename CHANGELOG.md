@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.6.0] - 2025-09-12
+
+### Breaking Changes
+- Unified streaming migrated to an event-based streaming API (not backward compatible)
+  - New stream event types: `start`, `text_delta`, `stop`, `error`
+  - Each event mirrors `UnifiedChatResponse` and adds: `eventType`, `outputIndex`, and optional `delta`
+  - Only text deltas are emitted; tool calls are executed provider-side during streaming (no tool_use deltas emitted)
+  - Final `stop` event now includes `rawResponse` with provider-native data
+    - OpenAI Chat Completions / DeepSeek / Anthropic: array of native stream chunks
+    - OpenAI Responses API: final response object
+    - Google Gemini: `{ stream, response }` (all stream chunks and the final response)
+    - Azure OpenAI: follows OpenAI Chat Completions behavior
+
+### Changed
+- README updated to document the new streaming event model and usage
+- Providers now populate `rawResponse` on the final `stop` event directly
+- `LLMClient.stream()` delegates rawResponse handling to providers (no post-processing in client)
+
+### Migration Guide
+Replace legacy streaming loops that inspected `chunk.message.content` with event-driven handling:
+
+```ts
+let acc = '';
+for await (const ev of client.stream(request)) {
+  switch (ev.eventType) {
+    case 'text_delta':
+      process.stdout.write(ev.delta?.text ?? '');
+      acc = ev.text; // accumulated text
+      break;
+    case 'stop':
+      console.log('final:', ev.text);
+      // ev.rawResponse contains provider-native final data
+      break;
+  }
+}
+```
+
+Notes:
+- Tool calls during streaming are handled provider-side; only the final assistant text is streamed to you
+- `finish_reason` and `usage` may appear on the final `stop` event when provided by the upstream API
+- Inspect `ev.rawResponse` on `stop` for provider-specific details (shape differs per provider, see above)
+
 ## [0.4.0] - 2025-07-09
 
 ### Breaking Changes
