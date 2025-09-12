@@ -119,6 +119,7 @@ export class DeepSeekProvider extends BaseProvider {
     let buffer = '';
     
     const pieces: string[] = [];
+    const rawChunks: any[] = [];
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -134,6 +135,7 @@ export class DeepSeekProvider extends BaseProvider {
           
           try {
             const chunk = JSON.parse(data);
+            rawChunks.push(chunk);
             const choice = chunk.choices?.[0];
             const deltaText = choice?.delta?.content;
             if (deltaText) pieces.push(deltaText);
@@ -182,7 +184,7 @@ export class DeepSeekProvider extends BaseProvider {
       message: { id: this.generateMessageId(), role: 'assistant', content: acc ? [{ type: 'text', text: acc }] : [], createdAt: new Date() },
       text: acc,
       createdAt: new Date(),
-      rawResponse: undefined,
+      rawResponse: rawChunks,
       eventType: 'stop',
       outputIndex: 0,
     } satisfies UnifiedStreamEventResponse;

@@ -176,7 +176,7 @@ export class GeminiProvider extends BaseProvider {
       const result = await chat.sendMessageStream(prompt);
       
       // Collect all chunks first to detect if there are function calls
-      const chunks = [];
+      const chunks: any[] = [];
       for await (const chunk of result.stream) {
         chunks.push(chunk);
       }
@@ -242,7 +242,7 @@ export class GeminiProvider extends BaseProvider {
           message: { id: this.generateMessageId(), role: 'assistant', content: acc ? [{ type: 'text', text: acc }] : [], createdAt: new Date() },
           text: acc,
           createdAt: new Date(),
-          rawResponse: undefined,
+          rawResponse: { stream: chunks, response: completeResponse },
           eventType: 'stop',
           outputIndex: 0,
         } satisfies UnifiedStreamEventResponse;
@@ -325,7 +325,7 @@ export class GeminiProvider extends BaseProvider {
             message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: acc }], createdAt: new Date() },
             text: acc,
             createdAt: new Date(),
-            rawResponse: undefined,
+            rawResponse: { stream: chunks, response: completeResponse },
             eventType: 'stop',
             outputIndex: 0,
           } satisfies UnifiedStreamEventResponse;

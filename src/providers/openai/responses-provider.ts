@@ -118,6 +118,7 @@ export class OpenAIResponsesProvider extends BaseProvider {
 
     const decoder = new TextDecoder();
     let buffer = '';
+    let finalResponse: any | undefined = undefined;
 
     // Buffer deltas then emit unified events: start -> text_delta* -> stop
     const textPieces: string[] = [];
@@ -140,6 +141,10 @@ export class OpenAIResponsesProvider extends BaseProvider {
             const json = JSON.parse(data);
             if (json.type === 'response.output_text.delta' && json.delta?.text) {
               textPieces.push(json.delta.text);
+            }
+            // capture final full response from SSE
+            if (json.type === 'response.completed' && json.response) {
+              finalResponse = json.response;
             }
           } catch {
             // ignore
@@ -186,7 +191,7 @@ export class OpenAIResponsesProvider extends BaseProvider {
       message: { id: this.generateMessageId(), role: 'assistant', content: acc ? [{ type: 'text', text: acc }] : [], createdAt: new Date() },
       text: acc,
       createdAt: new Date(),
-      rawResponse: undefined,
+      rawResponse: finalResponse,
       eventType: 'stop',
       outputIndex: 0,
     } satisfies UnifiedStreamEventResponse;

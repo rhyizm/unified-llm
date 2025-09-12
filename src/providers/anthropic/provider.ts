@@ -274,7 +274,7 @@ export class AnthropicProvider extends BaseProvider {
         message: { id: this.generateMessageId(), role: 'assistant', content: acc ? [{ type: 'text', text: acc }] : [], createdAt: new Date() },
         text: acc,
         createdAt: new Date(),
-        rawResponse: null,
+        rawResponse: allChunks,
         eventType: 'stop',
         outputIndex: 0,
       } satisfies UnifiedStreamEventResponse;

@@ -146,7 +146,9 @@ export class OpenAICompletionProvider extends BaseProvider {
       const bufferedTextDeltas: string[] = [];
 
       // Read entire phase, buffering to decide on tool usage
+      const rawChunks: any[] = [];
       for await (const chunk of stream) {
+        rawChunks.push(chunk);
         // Some providers (e.g., Azure variants) may emit non-choice keepalive/meta chunks
         const choice = (chunk as any)?.choices?.[0];
         if (!choice) {
@@ -289,7 +291,7 @@ export class OpenAICompletionProvider extends BaseProvider {
         text: accumulated,
         finish_reason: finishReason as any,
         createdAt: new Date(),
-        rawResponse: undefined,
+        rawResponse: rawChunks,
         eventType: 'stop',
         outputIndex: 0,
       } satisfies UnifiedStreamEventResponse;
