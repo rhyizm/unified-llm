@@ -60,8 +60,9 @@ describe('Tool Use E2E Tests', () => {
 
   providers.forEach(({ name, config }) => {
     const shouldSkip = !config.apiKey || (config.provider === 'azure' && (!config.endpoint || !config.deploymentName));
-    
-    describe.skipIf(shouldSkip)(`${name} Provider`, () => {
+    const describeForProvider = shouldSkip ? describe.skip : describe;
+
+    describeForProvider(`${name} Provider`, () => {
       it('should call a simple tool', async () => {
         const getWeatherTool: Tool = {
           type: 'function',

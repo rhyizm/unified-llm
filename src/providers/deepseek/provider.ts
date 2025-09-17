@@ -5,11 +5,21 @@ import {
   UnifiedError,
   Message,
   MessageContent,
+  MessageRole,
   UsageStats,
   Tool,
 } from '../../types/unified-api';
 import { validateChatRequest } from '../../utils/validation';
 import BaseProvider from '../base-provider';
+
+const VALID_MESSAGE_ROLES: MessageRole[] = [
+  'system',
+  'user',
+  'assistant',
+  'tool',
+  'function',
+  'developer',
+];
 
 export class DeepSeekProvider extends BaseProvider {
   private apiKey: string;
@@ -92,102 +102,214 @@ export class DeepSeekProvider extends BaseProvider {
   
   async *stream(request: UnifiedChatRequest): AsyncIterableIterator<UnifiedStreamEventResponse> {
     validateChatRequest(request);
-    
+
     const deepseekRequest = this.convertToDeepSeekFormat(request);
-    
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        ...deepseekRequest,
-        stream: true,
-      }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw this.handleError(error);
-    }
-    
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
-    
-    const decoder = new TextDecoder();
-    let buffer = '';
-    
-    const pieces: string[] = [];
-    const rawChunks: any[] = [];
+    const modelName = deepseekRequest.model || this.model || 'deepseek-chat';
+    let messages = [...deepseekRequest.messages];
+
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') continue;
-          
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          ...deepseekRequest,
+          messages,
+          stream: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw this.handleError(error);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      const rawChunks: any[] = [];
+      const bufferedTextDeltas: string[] = [];
+      const toolCallAccumulator: Map<number, {
+        id: string;
+        type: string;
+        function: { name: string; arguments: string };
+      }> = new Map();
+      let finishReason: string | undefined;
+      let assistantRole: MessageRole | undefined;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+
+          const data = trimmed.slice(5).trim();
+          if (!data || data === '[DONE]') {
+            continue;
+          }
+
           try {
             const chunk = JSON.parse(data);
             rawChunks.push(chunk);
+
             const choice = chunk.choices?.[0];
-            const deltaText = choice?.delta?.content;
-            if (deltaText) pieces.push(deltaText);
+            if (!choice) continue;
+
+            if (choice.finish_reason) {
+              finishReason = choice.finish_reason;
+            }
+
+            const delta = choice.delta || {};
+            if (typeof delta.role === 'string' && VALID_MESSAGE_ROLES.includes(delta.role as MessageRole)) {
+              assistantRole = delta.role as MessageRole;
+            }
+
+            const deltaContent = delta.content;
+            if (typeof deltaContent === 'string') {
+              bufferedTextDeltas.push(deltaContent);
+            } else if (Array.isArray(deltaContent)) {
+              deltaContent.forEach((part: any) => {
+                if (typeof part === 'string') {
+                  bufferedTextDeltas.push(part);
+                } else if (typeof part?.text === 'string') {
+                  bufferedTextDeltas.push(part.text);
+                }
+              });
+            }
+
+            if (Array.isArray(delta.tool_calls)) {
+              for (const toolCall of delta.tool_calls) {
+                const index = toolCall.index ?? 0;
+                if (!toolCallAccumulator.has(index)) {
+                  toolCallAccumulator.set(index, {
+                    id: toolCall.id || '',
+                    type: toolCall.type || 'function',
+                    function: {
+                      name: toolCall.function?.name || '',
+                      arguments: toolCall.function?.arguments || '',
+                    },
+                  });
+                } else {
+                  const existing = toolCallAccumulator.get(index)!;
+                  if (toolCall.id) existing.id = toolCall.id;
+                  if (toolCall.type) existing.type = toolCall.type;
+                  if (toolCall.function?.name) existing.function.name = toolCall.function.name;
+                  if (toolCall.function?.arguments) {
+                    existing.function.arguments += toolCall.function.arguments;
+                  }
+                }
+              }
+            }
           } catch (_e) {
             // Ignore parse errors
           }
         }
       }
-    }
 
-    // emit events
-    yield {
-      id: this.generateMessageId(),
-      model: (this.model || 'deepseek-chat'),
-      provider: 'deepseek',
-      message: { id: this.generateMessageId(), role: 'assistant', content: [], createdAt: new Date() },
-      text: '',
-      createdAt: new Date(),
-      rawResponse: undefined,
-      eventType: 'start',
-      outputIndex: 0,
-    } satisfies UnifiedStreamEventResponse;
+      if (finishReason === 'tool_calls' && this.tools && toolCallAccumulator.size > 0) {
+        const assistantMessage: any = {
+          role: assistantRole || 'assistant',
+          content: bufferedTextDeltas.length > 0 ? bufferedTextDeltas.join('') : null,
+          tool_calls: Array.from(toolCallAccumulator.values()),
+        };
 
-    let acc = '';
-    for (const p of pieces) {
-      acc += p;
-      const ev: UnifiedStreamEventResponse = {
+        const toolResults: any[] = [];
+        for (const toolCall of toolCallAccumulator.values()) {
+          if (toolCall.type !== 'function') continue;
+
+          const customFunction = this.tools.find(func => func.function.name === toolCall.function.name);
+          if (!customFunction) {
+            continue;
+          }
+
+          try {
+            const args = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {};
+            const mergedArgs = {
+              ...(customFunction.args || {}),
+              ...args,
+            };
+            const result = await customFunction.handler(mergedArgs);
+            toolResults.push({
+              role: 'tool' as const,
+              content: typeof result === 'string' ? result : JSON.stringify(result),
+              tool_call_id: toolCall.id,
+            });
+          } catch (error) {
+            toolResults.push({
+              role: 'tool' as const,
+              content: error instanceof Error ? error.message : 'Unknown error',
+              tool_call_id: toolCall.id,
+            });
+          }
+        }
+
+        if (toolResults.length > 0) {
+          messages = [
+            ...messages,
+            assistantMessage,
+            ...toolResults,
+          ];
+          continue; // request a new streamed response with tool outputs in context
+        }
+      }
+
+      yield {
         id: this.generateMessageId(),
-        model: (this.model || 'deepseek-chat'),
+        model: modelName,
         provider: 'deepseek',
-        message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: p }], createdAt: new Date() },
-        text: acc,
+        message: { id: this.generateMessageId(), role: 'assistant', content: [], createdAt: new Date() },
+        text: '',
         createdAt: new Date(),
         rawResponse: undefined,
-        eventType: 'text_delta',
+        eventType: 'start',
         outputIndex: 0,
-        delta: { type: 'text', text: p },
-      };
-      yield ev;
-    }
+      } satisfies UnifiedStreamEventResponse;
 
-    yield {
-      id: this.generateMessageId(),
-      model: (this.model || 'deepseek-chat'),
-      provider: 'deepseek',
-      message: { id: this.generateMessageId(), role: 'assistant', content: acc ? [{ type: 'text', text: acc }] : [], createdAt: new Date() },
-      text: acc,
-      createdAt: new Date(),
-      rawResponse: rawChunks,
-      eventType: 'stop',
-      outputIndex: 0,
-    } satisfies UnifiedStreamEventResponse;
+      let acc = '';
+      for (const piece of bufferedTextDeltas) {
+        if (!piece) continue;
+        acc += piece;
+        const ev: UnifiedStreamEventResponse = {
+          id: this.generateMessageId(),
+          model: modelName,
+          provider: 'deepseek',
+          message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: piece }], createdAt: new Date() },
+          text: acc,
+          createdAt: new Date(),
+          rawResponse: undefined,
+          eventType: 'text_delta',
+          outputIndex: 0,
+          delta: { type: 'text', text: piece },
+        };
+        yield ev;
+      }
+
+      yield {
+        id: this.generateMessageId(),
+        model: modelName,
+        provider: 'deepseek',
+        message: { id: this.generateMessageId(), role: assistantRole || 'assistant', content: acc ? [{ type: 'text', text: acc }] : [], createdAt: new Date() },
+        text: acc,
+        finish_reason: finishReason as any,
+        createdAt: new Date(),
+        rawResponse: rawChunks,
+        eventType: 'stop',
+        outputIndex: 0,
+      } satisfies UnifiedStreamEventResponse;
+
+      break;
+    }
   }
   
   private async makeAPICall(endpoint: string, payload: any): Promise<any> {
