@@ -211,31 +211,33 @@ describe('Tool Use E2E Tests', () => {
       }, 30000);
 
       it('should stream tool calls', async () => {
-        const calculateTool: Tool = {
+        const getCurrentTemperature: Tool = {
           type: 'function',
           function: {
-            name: 'calculate',
-            description: 'Perform a calculation',
+            name: 'getCurrentTemperature',
+            description: 'Get the current temperature for a location.',
             parameters: {
               type: 'object',
               properties: {
-                expression: {
+                location: {
                   type: 'string',
-                  description: 'Math expression to evaluate'
+                  description: 'Location to get the weather for'
                 }
               },
-              required: ['expression']
+              required: ['location']
             }
           },
+          args: {
+            temperature: '30 degrees Celsius'
+          },
           handler: async (args: Record<string, any>) => {
-            const result = eval(args.expression);
-            return `The result of ${args.expression} is ${result}`;
+            return `${args.location} is ${args.temperature}!`;
           }
         };
 
         const client = new LLMClient({
           ...config,
-          tools: [calculateTool]
+          tools: [getCurrentTemperature]
         });
 
         const chunks: any[] = [];
@@ -244,7 +246,7 @@ describe('Tool Use E2E Tests', () => {
           messages: [
             {
               role: 'user',
-              content: 'Calculate 15 + 25'
+              content: 'What is the current temperature in Tokyo?'
             }
           ]
         })) {
@@ -260,7 +262,8 @@ describe('Tool Use E2E Tests', () => {
           }
         }
 
-        expect(fullContent).toContain('40');
+        expect(fullContent).toContain('Tokyo');
+        expect(fullContent).toContain('30');
       }, 30000);
 
       it('should handle tool errors gracefully', async () => {

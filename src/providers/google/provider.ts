@@ -151,112 +151,53 @@ export class GeminiProvider extends BaseProvider {
     });
     
     const history = await this.convertToGeminiHistory(filteredMessages.slice(0, -1));
-    
-    // Keep trying to get a response until we don't get tool calls
-    while (true) {
-      
-      const chatConfig: any = {
-        history,
-        generationConfig: this.convertGenerationConfig(request.generationConfig),
-        tools: tools.length > 0 ? tools : undefined,
+
+    const chatConfig: any = {
+      history,
+      generationConfig: this.convertGenerationConfig(request.generationConfig),
+      tools: tools.length > 0 ? tools : undefined,
+    };
+
+    if (systemInstruction) {
+      chatConfig.systemInstruction = {
+        parts: [{ text: systemInstruction }],
+        role: 'user'
       };
-      
-      if (systemInstruction) {
-        chatConfig.systemInstruction = {
-          parts: [{ text: systemInstruction }],
-          role: 'user'
-        };
-      }
-      
-      const chat = modelInstance.startChat(chatConfig);
-      
-      const lastMessage = filteredMessages[filteredMessages.length - 1];
-      const prompt = this.extractPromptFromMessage(lastMessage);
-      
-      const result = await chat.sendMessageStream(prompt);
-      
-      // Collect all chunks first to detect if there are function calls
+    }
+
+    const chat = modelInstance.startChat(chatConfig);
+
+    const lastMessage = filteredMessages[filteredMessages.length - 1];
+    if (!lastMessage) {
+      throw new Error('No user message provided for Gemini stream');
+    }
+
+    let pendingInput: any = this.extractPromptFromMessage(lastMessage);
+
+    while (true) {
+      const result = await chat.sendMessageStream(pendingInput);
+
+      // Collect chunks to determine whether tool calls occurred
       const chunks: any[] = [];
       for await (const chunk of result.stream) {
         chunks.push(chunk);
       }
-      
-      // Get the complete response to check for function calls
+
       const completeResponse = await result.response;
       const hasFunctionCalls = this.hasFunctionCalls(completeResponse);
-      
-      if (!hasFunctionCalls) {
-        // No function calls, emit unified events from collected chunks
-        const pieces: string[] = [];
-        if (chunks.length === 1) {
-          const singleChunk = chunks[0];
-          const text = singleChunk.text();
-          const words = text.split(' ');
-          const chunkSize = Math.max(1, Math.floor(words.length / 2));
-          for (let i = 0; i < words.length; i += chunkSize) {
-            const chunkWords = words.slice(i, i + chunkSize);
-            const chunkText = chunkWords.join(' ') + (i + chunkSize < words.length ? ' ' : '');
-            pieces.push(chunkText);
-          }
-        } else {
-          for (const chunk of chunks) {
-            const text = chunk.text();
-            if (text) pieces.push(text);
-          }
-        }
 
-        yield {
-          id: this.generateMessageId(),
-          model: model,
-          provider: 'google',
-          message: { id: this.generateMessageId(), role: 'assistant', content: [], createdAt: new Date() },
-          text: '',
-          createdAt: new Date(),
-          rawResponse: undefined,
-          eventType: 'start',
-          outputIndex: 0,
-        } satisfies UnifiedStreamEventResponse;
-
-        let acc = '';
-        for (const p of pieces) {
-          acc += p;
-          const ev: UnifiedStreamEventResponse = {
-            id: this.generateMessageId(),
-            model: model,
-            provider: 'google',
-            message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: p }], createdAt: new Date() },
-            text: acc,
-            createdAt: new Date(),
-            rawResponse: undefined,
-            eventType: 'text_delta',
-            outputIndex: 0,
-            delta: { type: 'text', text: p },
-          };
-          yield ev;
-        }
-
-        yield {
-          id: this.generateMessageId(),
-          model: model,
-          provider: 'google',
-          message: { id: this.generateMessageId(), role: 'assistant', content: acc ? [{ type: 'text', text: acc }] : [], createdAt: new Date() },
-          text: acc,
-          createdAt: new Date(),
-          rawResponse: { stream: chunks, response: completeResponse },
-          eventType: 'stop',
-          outputIndex: 0,
-        } satisfies UnifiedStreamEventResponse;
-        break;
-      } else {
-        // Function calls detected, execute them
+      if (hasFunctionCalls) {
         const functionCalls = this.extractFunctionCalls(completeResponse);
+        if (!functionCalls.length || !this.tools?.length) {
+          break;
+        }
+
         const functionResults: any[] = [];
-        
+
         for (const call of functionCalls) {
-          const customFunction = this.tools?.find(func => func.function.name === call.name);
+          const customFunction = this.tools.find(func => func.function.name === call.name);
           if (customFunction) {
             try {
-              // Merge default args with function call args
               const mergedArgs = {
                 ...(customFunction.args || {}),
                 ...call.args
@@ -274,67 +215,82 @@ export class GeminiProvider extends BaseProvider {
             }
           }
         }
-        
-        // If we have function results, execute them and return the final response in streaming format
-        if (functionResults.length > 0) {
-          // Create a streaming response with the function result
-          const resultText = functionResults.map(result => 
-            typeof result.response.result === 'string' 
-              ? result.response.result 
-              : JSON.stringify(result.response.result)
-          ).join('\n');
-          
-          // Split the result into chunks for streaming simulation
-          const words = resultText.split(' ');
-          const chunkSize = Math.max(1, Math.floor(words.length / 3)); // Create at least 3 chunks
-          
-          let acc = '';
-          yield {
-            id: this.generateMessageId(),
-            model: model,
-            provider: 'google',
-            message: { id: this.generateMessageId(), role: 'assistant', content: [], createdAt: new Date() },
-            text: '',
-            createdAt: new Date(),
-            rawResponse: undefined,
-            eventType: 'start',
-            outputIndex: 0,
-          } satisfies UnifiedStreamEventResponse;
-          for (let i = 0; i < words.length; i += chunkSize) {
-            const chunkWords = words.slice(i, i + chunkSize);
-            const chunkText = chunkWords.join(' ') + (i + chunkSize < words.length ? ' ' : '');
-            acc += chunkText;
-            const ev: UnifiedStreamEventResponse = {
-              id: this.generateMessageId(),
-              model: model,
-              provider: 'google',
-              message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: chunkText }], createdAt: new Date() },
-              text: acc,
-              createdAt: new Date(),
-              rawResponse: undefined,
-              eventType: 'text_delta',
-              outputIndex: 0,
-              delta: { type: 'text', text: chunkText },
-            };
-            yield ev;
-          }
-          yield {
-            id: this.generateMessageId(),
-            model: model,
-            provider: 'google',
-            message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: acc }], createdAt: new Date() },
-            text: acc,
-            createdAt: new Date(),
-            rawResponse: { stream: chunks, response: completeResponse },
-            eventType: 'stop',
-            outputIndex: 0,
-          } satisfies UnifiedStreamEventResponse;
-          
-          // Break out of the loop after streaming function results
+
+        if (functionResults.length === 0) {
           break;
         }
+
+        pendingInput = functionResults.map(result => ({
+          functionResponse: {
+            name: result.name,
+            response: result.response
+          }
+        }));
+
+        continue;
       }
-      
+
+      // No function calls, emit unified events from collected chunks
+      const pieces: string[] = [];
+      if (chunks.length === 1) {
+        const singleChunk = chunks[0];
+        const text = singleChunk.text();
+        const words = text.split(' ');
+        const chunkSize = Math.max(1, Math.floor(words.length / 2));
+        for (let i = 0; i < words.length; i += chunkSize) {
+          const chunkWords = words.slice(i, i + chunkSize);
+          const chunkText = chunkWords.join(' ') + (i + chunkSize < words.length ? ' ' : '');
+          pieces.push(chunkText);
+        }
+      } else {
+        for (const chunk of chunks) {
+          const text = chunk.text();
+          if (text) pieces.push(text);
+        }
+      }
+
+      yield {
+        id: this.generateMessageId(),
+        model: model,
+        provider: 'google',
+        message: { id: this.generateMessageId(), role: 'assistant', content: [], createdAt: new Date() },
+        text: '',
+        createdAt: new Date(),
+        rawResponse: undefined,
+        eventType: 'start',
+        outputIndex: 0,
+      } satisfies UnifiedStreamEventResponse;
+
+      let acc = '';
+      for (const p of pieces) {
+        acc += p;
+        const ev: UnifiedStreamEventResponse = {
+          id: this.generateMessageId(),
+          model: model,
+          provider: 'google',
+          message: { id: this.generateMessageId(), role: 'assistant', content: [{ type: 'text', text: p }], createdAt: new Date() },
+          text: acc,
+          createdAt: new Date(),
+          rawResponse: undefined,
+          eventType: 'text_delta',
+          outputIndex: 0,
+          delta: { type: 'text', text: p },
+        };
+        yield ev;
+      }
+
+      yield {
+        id: this.generateMessageId(),
+        model: model,
+        provider: 'google',
+        message: { id: this.generateMessageId(), role: 'assistant', content: acc ? [{ type: 'text', text: acc }] : [], createdAt: new Date() },
+        text: acc,
+        createdAt: new Date(),
+        rawResponse: { stream: chunks, response: completeResponse },
+        eventType: 'stop',
+        outputIndex: 0,
+      } satisfies UnifiedStreamEventResponse;
+
       break;
     }
   }
