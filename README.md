@@ -3,11 +3,19 @@
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://badge.fury.io/js/%40unified-llm%2Fcore.svg)](https://badge.fury.io/js/%40unified-llm%2Fcore)
 
-A unified interface for interacting with multiple Large Language Models (LLMs) including OpenAI, Anthropic, Google Gemini, DeepSeek, and Azure OpenAI, with local function execution capabilities and persistent conversation management.
+A simple way to manipulate multiple LLMs (OpenAI, Anthropic, Google Gemini, DeepSeek, Azure OpenAI, Ollama) with unified interface. 
+
+Why this matters:
+- One interface for many LLMs: swap providers without changing app code.
+- Event-based streaming API: start → text_delta* → stop → error.
+- Same field for display: use `response.text` for both chat and stream.
+- Clean streaming with tools: providers execute tool calls mid-stream; you only receive text.
+- Power when you need it: access provider-native payloads via `rawResponse` on the final chunk.
 
 ## Features
 
 - 🤖 **Multi-Provider Support** - OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Azure OpenAI, Ollama
+- ⚡ **Event‑Based Streaming API** - Unified `start/text_delta/stop/error` events across providers
 - 🔧 **Function Calling** - Execute local functions and integrate external tools
 - 📊 **Structured Output** - Guaranteed JSON schema compliance across all providers
 - 💬 **Conversation Persistence** - SQLite-based chat history and thread management
@@ -19,49 +27,28 @@ A unified interface for interacting with multiple Large Language Models (LLMs) i
 npm install @unified-llm/core
 ```
 
-## Quick Start
+## Simplest way to chat with multiple LLMs
+
+One tiny interface, many providers. Change only the `provider` and `model`.
 
 ```typescript
 import { LLMClient } from '@unified-llm/core';
 
-// Create an LLM client
-const gpt = new LLMClient({
-  provider: 'openai',
-  model: 'gpt-4o-mini',
-  apiKey: process.env.OPENAI_API_KEY,
-  systemPrompt: 'You are a helpful assistant that answers concisely.'
-});
+const providers = [
+  { provider: 'openai',   model: 'gpt-4o-mini',            apiKey: process.env.OPENAI_API_KEY },
+  { provider: 'anthropic',model: 'claude-3-haiku-20240307', apiKey: process.env.ANTHROPIC_API_KEY },
+  { provider: 'google',   model: 'gemini-2.5-flash',        apiKey: process.env.GOOGLE_API_KEY },
+  { provider: 'deepseek', model: 'deepseek-chat',           apiKey: process.env.DEEPSEEK_API_KEY },
+  // Azure and Ollama have dedicated sections below
+];
 
-const claude = new LLMClient({
-  provider: 'anthropic', 
-  model: 'claude-3-haiku-20240307',
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  systemPrompt: 'You are a thoughtful assistant that provides detailed explanations.'
-});
-
-// Send a message using the chat method
-const gptResponse = await gpt.chat({
-  messages: [{
-    id: '1',
-    role: 'user',
-    content: 'Hello, GPT!',
-    createdAt: new Date()
-  }]
-});
-
-// Send a message with Claude
-const claudeResponse = await claude.chat({
-  messages: [{
-    id: '1',
-    role: 'user',
-    content: 'Hello, Claude!',
-    createdAt: new Date()
-  }]
-});
-
-// Returns responses in the same format
-console.log(JSON.stringify(gptResponse, null, 2));
-console.log(JSON.stringify(claudeResponse, null, 2));
+for (const cfg of providers.filter(p => p.apiKey)) {
+  const client = new LLMClient(cfg as any);
+  const res = await client.chat({
+    messages: [{ role: 'user', content: 'Give me one fun fact.' }]
+  });
+  console.log(cfg.provider, '→', res.text);
+}
 ```
 
 ## Streaming Responses
