@@ -161,9 +161,10 @@ export class LLMClient {
   private generateToolDefinitions(): ToolDefinition[] | undefined {
     if (!this.tools) return undefined;
 
-    return Object.keys(this.tools).map(functionName => {
-      let description = `Execute ${functionName} function`;
-      
+    return this.tools.map(tool => {
+      const functionName = tool.function.name;
+      let description = tool.function.description || `Execute ${functionName} function`;
+
       // 特定の関数に対してより具体的な説明を提供
       switch (functionName) {
         case 'getAuthor':
@@ -191,7 +192,7 @@ export class LLMClient {
         function: {
           name: functionName,
           description,
-          parameters: {
+          parameters: tool.function.parameters || {
             type: 'object',
             properties: {},
             required: []

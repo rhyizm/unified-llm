@@ -340,31 +340,34 @@ export class GeminiProvider extends BaseProvider {
   }
   
   private convertToolsToGeminiFormat(requestTools?: any[], providerTools?: Tool[]): any[] {
-    const allTools = [];
-    
-    // request.toolsを追加
-    if (requestTools && requestTools.length > 0) {
-      allTools.push(...requestTools.map(tool => ({
-        name: tool.function.name,
-        description: tool.function.description || '',
-        parameters: tool.function.parameters || { type: 'object', properties: {} }
-      })));
-    }
-    
-    // provider.toolsを追加
+    const toolMap = new Map<string, { name: string; description: string; parameters: any }>();
+
+    const addTool = (name: string, description: string | undefined, parameters: any) => {
+      if (!name) return;
+      toolMap.set(name, {
+        name,
+        description: description || '',
+        parameters: parameters || { type: 'object', properties: {} }
+      });
+    };
+
+    // request.tools の方を優先する（後から上書きされる）
     if (providerTools && providerTools.length > 0) {
-      allTools.push(...providerTools.map(func => ({
-        name: func.function.name,
-        description: func.function.description || '',
-        parameters: func.function.parameters || { type: 'object', properties: {} }
-      })));
+      providerTools.forEach(func => {
+        addTool(func.function.name, func.function.description, func.function.parameters);
+      });
     }
-    
-    if (allTools.length === 0) return [];
-    
-    // Gemini expects a single object with functionDeclarations array
+
+    if (requestTools && requestTools.length > 0) {
+      requestTools.forEach(tool => {
+        addTool(tool.function.name, tool.function.description, tool.function.parameters);
+      });
+    }
+
+    if (toolMap.size === 0) return [];
+
     return [{
-      functionDeclarations: allTools
+      functionDeclarations: Array.from(toolMap.values())
     }];
   }
 

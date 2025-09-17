@@ -374,24 +374,33 @@ export class AnthropicProvider extends BaseProvider {
     }
 
     // toolsの結合: request.toolsとcustomFunctionsを統合
-    const tools = [
-      ...(request.tools?.map(tool => ({
-        name: tool.function.name,
-        description: tool.function.description || '',
+    const toolMap = new Map<string, { name: string; description: string; input_schema: any }>();
+
+    const addTool = (name: string, description: string | undefined, parameters: any) => {
+      if (!name) return;
+      toolMap.set(name, {
+        name,
+        description: description || '',
         input_schema: {
           type: 'object' as const,
-          ...tool.function.parameters || {},
+          ...(parameters || {}),
         },
-      })) || []),
-      ...(this.tools ? this.tools.map((func: Tool) => ({
-        name: func.function.name,
-        description: func.function.description || '',
-        input_schema: {
-          type: 'object' as const,
-          ...func.function.parameters || {},
-        },
-      })) : []),
-    ];
+      });
+    };
+
+    if (this.tools) {
+      this.tools.forEach((func: Tool) => {
+        addTool(func.function.name, func.function.description, func.function.parameters);
+      });
+    }
+
+    if (request.tools) {
+      request.tools.forEach(tool => {
+        addTool(tool.function.name, tool.function.description, tool.function.parameters);
+      });
+    }
+
+    const tools = Array.from(toolMap.values());
     
     return {
       model: request.model || this.model as Anthropic.Model,

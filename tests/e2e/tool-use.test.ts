@@ -166,53 +166,48 @@ describe('Tool Use E2E Tests', () => {
       }, 30000);
 
       it('should handle tools with default arguments', async () => {
-        const greetingTool: Tool = {
+        const getCurrentTemperature: Tool = {
           type: 'function',
           function: {
-            name: 'greet',
-            description: 'Generate a greeting',
+            name: 'getCurrentTemperature',
+            description: 'Get the current temperature for a location.',
             parameters: {
               type: 'object',
               properties: {
-                name: {
+                location: {
                   type: 'string',
-                  description: 'Name to greet'
+                  description: 'Location to get the weather for'
                 }
               },
-              required: ['name']
+              required: ['location']
             }
           },
           args: {
-            language: 'English'
+            temperature: '30 degrees Celsius',
           },
           handler: async (args: Record<string, any>) => {
-            const greetings: Record<string, string> = {
-              'English': 'Hello',
-              'Japanese': 'こんにちは',
-              'Spanish': 'Hola'
-            };
-            return `${greetings[args.language] || 'Hello'}, ${args.name}!`;
+            return `${args.location} is ${args.temperature}!`;
           }
         };
 
         const client = new LLMClient({
           ...config,
-          tools: [greetingTool]
+          tools: [getCurrentTemperature]
         });
 
         const response = await client.chat({
           messages: [
             {
               role: 'user',
-              content: 'Greet Alice'
+              content: 'What temperature is it in Tokyo?'
             }
           ]
         });
 
         const content = getTextFromContent(response.message.content);
 
-        expect(content).toContain('Hello');
-        expect(content).toContain('Alice');
+        expect(content).toContain('Tokyo');
+        expect(content).toContain('30');
       }, 30000);
 
       it('should stream tool calls', async () => {
