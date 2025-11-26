@@ -1,5 +1,14 @@
 import { ResponseFormat } from '../response-format';
 
+export type ProviderType =
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'azure'
+  | 'deepseek'
+  | 'ollama'
+  | 'openai-compatible';
+
 export type MessageRole = 'system' | 'user' | 'assistant' | 'tool' | 'function' | 'developer';
 
 export type ContentType = 'text' | 'image' | 'audio' | 'video' | 'file' | 'tool_use' | 'tool_result' | 'reasoning';
@@ -53,7 +62,7 @@ export interface ToolResultContent {
   type: 'tool_result';
   toolUseId: string;
   isError?: boolean;
-  content?: Array<TextContent | ImageContent>;
+  content?: MessageContent[];
 }
 
 export interface AudioContent {
@@ -87,13 +96,21 @@ export type MessageContent =
   | ToolUseContent 
   | ToolResultContent;
 
+export interface MessageMetadata {
+  provider?: ProviderType;
+  model?: string;
+  // ここから先は自由に拡張
+  [key: string]: unknown;
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
+  // TODO: remove string support
   content: MessageContent[] | string;
   name?: string;
   createdAt: Date;
-  metadata?: Record<string, unknown>;
+  metadata?: MessageMetadata;
 }
 
 export interface ToolDefinition {
@@ -150,7 +167,7 @@ export interface SafetySetting {
 }
 
 export interface ProviderSpecificConfig {
-  provider: 'openai' | 'anthropic' | 'google' | 'azure' | 'deepseek';
+  provider: ProviderType;
   openai?: {
     organization?: string;
     responseFormat?: { type: 'json_object' };
@@ -216,7 +233,7 @@ export interface UnifiedError {
 export interface UnifiedChatResponse {
   id: string;
   model: string;
-  provider: 'openai' | 'anthropic' | 'google' | 'azure' | 'deepseek';
+  provider: ProviderType;
   message: Message;
   text: string;
   usage?: UsageStats;
@@ -241,4 +258,24 @@ export type UnifiedStreamEventResponse = Omit<UnifiedChatResponse, 'createdAt'> 
   eventType: StreamEventType;
   outputIndex: number;
   delta?: StreamDelta;
+};
+
+// OpenAI Conversations API compatibility interface
+export interface OpenAIConversationLike {
+  id: string;
+  object: 'conversation';
+  /** Unix timestamp */
+  created_at: number;
+  metadata?: Record<string, string> | null;
+}
+
+// Unified conversation object
+export interface Conversation extends OpenAIConversationLike {
+  title?: string;
+  messages: Message[];
+  /**
+   * Wrapper for created_at
+   * createdAt = new Date(created_at * 1000) 
+   */
+  createdAt?: Date;
 };

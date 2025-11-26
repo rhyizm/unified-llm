@@ -4,12 +4,17 @@ import { AzureOpenAIProvider } from './providers/azure';
 import { AnthropicProvider } from './providers/anthropic';
 import { GeminiProvider } from './providers/google';
 import { DeepSeekProvider } from './providers/deepseek';
-import { ToolDefinition, Tool, UnifiedStreamEventResponse } from './types/unified-api';
+import {
+  ToolDefinition,
+  Tool,
+  UnifiedStreamEventResponse,
+  ProviderType,
+} from './types/unified-api';
 
 // LLMClient構成オプション（実行時用）
 export interface LLMClientRuntimeConfig {
   id?: string;
-  provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'azure' | 'ollama' | 'openai-compatible';
+  provider: ProviderType;
   apiKey?: string;
   model?: string;
   baseURL?: string;
@@ -40,11 +45,15 @@ export class LLMClient {
   private tools?: Tool[];
   private id?: string;
   private systemPrompt?: string;
+  private provider: ProviderType;
+  private defaultModel?: string;
 
   constructor(config: LLMClientRuntimeConfig) {
     this.id = config.id;
     this.tools = config.tools;
     this.systemPrompt = config.systemPrompt;
+    this.provider = config.provider;
+    this.defaultModel = config.model;
         
     switch (config.provider) {
       case 'openai':
@@ -134,7 +143,7 @@ export class LLMClient {
 
   // 静的ファクトリーメソッド（後方互換性のため）
   static create(
-    provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'azure' | 'ollama' | 'openai-compatible',
+    provider: ProviderType,
     apiKey: string,
     model: string
   ): BaseProvider {
@@ -224,17 +233,10 @@ export class LLMClient {
   async chat(request: any) {
     // ツール定義を追加
     const tools = this.generateToolDefinitions();
+    const model = request.model || this.defaultModel;
     
     // システムプロンプトを注入（存在する場合）
     let messages = request.messages || [];
-    
-    // メッセージのコンテンツを正規化（文字列を配列に変換）
-    messages = messages.map((msg: any) => ({
-      ...msg,
-      content: typeof msg.content === 'string' 
-        ? [{ type: 'text', text: msg.content }] 
-        : msg.content
-    }));
     
     if (this.systemPrompt && !messages.some((m: any) => m.role === 'system')) {
       messages = [
@@ -250,27 +252,29 @@ export class LLMClient {
     
     const enhancedRequest = {
       ...request,
+      model,
       messages,
       tools
     };
 
     let response = await this.baseProvider.chat(enhancedRequest);
+    response.message.metadata = {
+      ...(response.message.metadata || {}),
+      provider: this.provider,
+      model,
+    };
 
     // ツール呼び出しがある場合は実行
     if (response.message.content) {
       const contents = Array.isArray(response.message.content) ? response.message.content : [response.message.content];
       const toolUseContents = contents.filter(c => typeof c === 'object' && c.type === 'tool_use');
       
-      // Debug logging for tool use detection can be enabled if needed
-      
       if (toolUseContents.length > 0) {
         const toolResults = [];
         
         for (const toolUse of toolUseContents) {
           try {
-            // console.log('🔧 Executing function:', toolUse.name, 'with args:', toolUse.input);
             const result = await this.executeFunction(toolUse.name, toolUse.input);
-            // console.log('✅ Function result:', result);
             
             toolResults.push({
               type: 'tool_result',
@@ -293,8 +297,9 @@ export class LLMClient {
         // ツール結果を含む新しいリクエストを作成
         const followUpRequest = {
           ...request,
+          model,
           messages: [
-            ...request.messages,
+            ...messages,
             response.message,
             {
               id: this.generateMessageId(),
@@ -339,12 +344,14 @@ export class LLMClient {
               text: `\n\nFunction execution result: ${actualResult}`
             }
           ];
-          
-          // console.log('📥 Google: Enhanced response with function result');
         } else {
           // For other providers, send function results back to the model
           response = await this.baseProvider.chat(followUpRequest);
-          // console.log('📥 Follow-up response received:', response.message.content);
+          response.message.metadata = {
+            ...(response.message.metadata || {}),
+            provider: this.provider,
+            model,
+          };
         }
       }
     }
@@ -391,9 +398,6 @@ export class LLMClient {
   private generateMessageId(): string {
     return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
-
-  // Note: v0.4.0 removed all persistence methods.
-  // Use ClientManager for preset configurations.
 }
 
 export default LLMClient;
