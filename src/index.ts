@@ -11,6 +11,6 @@ export {
 };
 
 // Type exports
-export type { LLMClientConfig, LLMClientRuntimeConfig } from './llm-client';
+export type { LLMClientConfig } from './llm-client';
 export type { Tool } from './types/unified-api';
 export type { ResponseFormatConfig, JsonSchema } from './response-format';

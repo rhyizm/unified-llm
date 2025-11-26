@@ -12,7 +12,7 @@ import {
 } from './types/unified-api';
 
 // LLMClient構成オプション（実行時用）
-export interface LLMClientRuntimeConfig {
+export interface LLMClientConfig {
   id?: string;
   provider: ProviderType;
   apiKey?: string;
@@ -36,9 +36,6 @@ export interface LLMClientRuntimeConfig {
   logLevel?: string;
 }
 
-// 保存用設定（実行時設定と同じ）
-export type LLMClientConfig = LLMClientRuntimeConfig;
-
 // ファクトリークラス
 export class LLMClient {
   private baseProvider: BaseProvider;
@@ -48,7 +45,7 @@ export class LLMClient {
   private provider: ProviderType;
   private defaultModel?: string;
 
-  constructor(config: LLMClientRuntimeConfig) {
+  constructor(config: LLMClientConfig) {
     this.id = config.id;
     this.tools = config.tools;
     this.systemPrompt = config.systemPrompt;
