@@ -144,39 +144,6 @@ export interface UsageStats {
   reasoningTokens?: number;
 }
 
-export interface ChatCompletionResponse {
-  id: string;
-  object: string;
-  created: Date;
-  model: string;
-  choices: Array<{
-    index: number;
-    message: Message;
-    finishReason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | null;
-    logprobs?: unknown;
-  }>;
-  usage?: UsageStats;
-  systemFingerprint?: string;
-}
-
-export interface ConversationThread {
-  id: string;
-  title?: string;
-  messages: Message[];
-  createdAt: Date;
-  updatedAt: Date;
-  metadata?: Record<string, unknown>;
-  config?: ConversationConfig;
-}
-
-export interface ConversationConfig {
-  model: string;
-  systemPrompt?: string;
-  tools?: ToolDefinition[];
-  generationConfig?: GenerationConfig;
-  safetySettings?: SafetySetting[];
-}
-
 export interface SafetySetting {
   category: string;
   threshold: 'BLOCK_NONE' | 'BLOCK_ONLY_HIGH' | 'BLOCK_MEDIUM_AND_ABOVE' | 'BLOCK_LOW_AND_ABOVE';
@@ -236,9 +203,6 @@ export interface UnifiedChatRequest {
   generationConfig?: GenerationConfig;
   providerConfig?: ProviderSpecificConfig;
 }
-
-export type ConvertToProviderFormat<T> = (request: UnifiedChatRequest) => T;
-export type ConvertFromProviderFormat<T> = (response: T) => ChatCompletionResponse;
 
 export interface UnifiedError {
   code: string;

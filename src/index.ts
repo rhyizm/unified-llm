@@ -1,11 +1,9 @@
 import { LLMClient } from './llm-client';
-import Thread from './thread';
 import tools from './tools';
 import { ResponseFormat, createResponseFormat, ResponseFormats } from './response-format';
 
 export { 
-  LLMClient, 
-  Thread,
+  LLMClient,
   tools, 
   ResponseFormat,
   createResponseFormat,
