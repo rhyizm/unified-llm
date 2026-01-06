@@ -2,33 +2,34 @@
   "name": "@unified-llm/core",
   "version": "0.6.3",
   "description": "Unified LLM interface (in-memory).",
-  "main": "dist/index.js",
   "type": "module",
-  "types": "dist/index.d.ts",
+
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./tools": {
       "types": "./dist/tools/index.d.ts",
-      "import": "./dist/tools/index.js"
+      "import": "./dist/tools/index.js",
+      "default": "./dist/tools/index.js"
     }
   },
-  "typesVersions": {
-    "*": {
-      "tools": [
-        "dist/tools/index.d.ts"
-      ]
-    }
-  },
+
   "files": [
     "dist",
     "README.md",
     "LICENSE"
   ],
+
+  "sideEffects": false,
+
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.nodenext.json",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "prepublishOnly": "npm run build",
@@ -37,6 +38,7 @@
     "test:coverage": "vitest run --coverage",
     "script": "tsx"
   },
+
   "keywords": [
     "LLM",
     "AI",
@@ -51,8 +53,10 @@
     "DeepSeek",
     "Azure OpenAI"
   ],
+
   "author": "rhyizm",
   "license": "MIT",
+
   "devDependencies": {
     "@next/eslint-plugin-next": "^14.2.14",
     "@types/debug": "^4.1.12",
@@ -71,6 +75,7 @@
     "typescript": "^5.4.5",
     "vitest": "^3.2.4"
   },
+
   "dependencies": {
     "@anthropic-ai/sdk": "^0.53.0",
     "@azure/core-auth": "^1.9.0",
@@ -82,7 +87,9 @@
     "uuid": "^11.0.5",
     "zod": "^3.25.7"
   },
+
   "packageManager": "pnpm@10.15.0",
+
   "repository": {
     "type": "git",
     "url": "https://github.com/rhyizm/unified-llm.git"
@@ -91,7 +98,12 @@
   "bugs": {
     "url": "https://github.com/rhyizm/unified-llm/issues"
   },
+
+  "publishConfig": {
+    "access": "public"
+  },
+
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   }
 }

@@ -1,1 +1,1 @@
-export { AzureOpenAIProvider } from './provider';
+export { AzureOpenAIProvider } from './provider.js';

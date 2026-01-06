@@ -5,11 +5,11 @@ import {
   calculateUsageCost,
   ModelPricingKey,
   UsageTotals,
-} from "../../utils/token-utils";
-import { Thread } from "../../thread";
-import type { MCPServerConfig, Logger, OpenAIFunctionCallOutput } from "../../types";
-import { createMcpTransport, sanitizeToolCallResult } from "../../utils/mcp-utils";
-import { Clock, createDefaultClock } from "../../utils/timing";
+} from "../../utils/token-utils.js";
+import { Thread } from "../../thread.js";
+import type { MCPServerConfig, Logger, OpenAIFunctionCallOutput } from "../../types/index.js";
+import { createMcpTransport, sanitizeToolCallResult } from "../../utils/mcp-utils.js";
+import { Clock, createDefaultClock } from "../../utils/timing.js";
 
 export const NOOP_LOGGER: Logger = {
   debug: () => {},

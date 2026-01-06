@@ -23,12 +23,12 @@ import {
   TextContent,
   UsageStats,
   Tool as UnifiedTool,
-} from '../../types/unified-api';
-import { MCPServerConfig } from '../../types/mcp';
-import { validateChatRequest } from '../../utils/validation';
-import { validateOpenAILogLevel } from '../../validators';
-import BaseProvider from '../base-provider';
-import { normalizeToolParametersForAgents } from '../../utils/tool-schema';
+} from '../../types/unified-api.js';
+import { MCPServerConfig } from '../../types/mcp.js';
+import { validateChatRequest } from '../../utils/validation.js';
+import { validateOpenAILogLevel } from '../../validators/index.js';
+import BaseProvider from '../base-provider.js';
+import { normalizeToolParametersForAgents } from '../../utils/tool-schema.js';
 
 type OpenAIAPI = 'responses' | 'chat_completions';
 
@@ -208,9 +208,10 @@ export class OpenAIAgentProvider extends BaseProvider {
     // Build model instance with injected client when available (no global state)
     let modelInstance: any;
     if (this.openaiClient) {
+      const client = this.openaiClient as any;
       modelInstance = this.openaiApi === 'responses'
-        ? new OpenAIResponsesModel(this.openaiClient, effectiveModel)
-        : new OpenAIChatCompletionsModel(this.openaiClient, effectiveModel);
+        ? new OpenAIResponsesModel(client, effectiveModel)
+        : new OpenAIChatCompletionsModel(client, effectiveModel);
     } else {
       // Explicitly use the default client resolution path when no client provided
       modelInstance = effectiveModel;

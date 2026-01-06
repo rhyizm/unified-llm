@@ -1,1 +1,1 @@
-export { GeminiProvider } from './provider';
+export { GeminiProvider } from './provider.js';

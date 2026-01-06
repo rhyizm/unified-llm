@@ -8,12 +8,12 @@ import {
   MessageContent,
   UsageStats,
   Tool,
-} from '../../types/unified-api';
-import { validateChatRequest } from '../../utils/validation';
-import { validateOpenAILogLevel } from '../../validators';
-import { normalizeFunctionForCompletions } from '../../utils/tool-schema';
-import BaseProvider from '../base-provider';
-import { ResponseFormat } from '../../response-format';
+} from '../../types/unified-api.js';
+import { validateChatRequest } from '../../utils/validation.js';
+import { validateOpenAILogLevel } from '../../validators/index.js';
+import { normalizeFunctionForCompletions } from '../../utils/tool-schema.js';
+import BaseProvider from '../base-provider.js';
+import { ResponseFormat } from '../../response-format.js';
 
 export class OpenAICompletionProvider extends BaseProvider {
   protected client: OpenAI;

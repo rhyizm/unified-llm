@@ -1,4 +1,4 @@
-import { cat } from './cat';
-import { tree } from './tree';
+import { cat } from './cat.js';
+import { tree } from './tree.js';
 
 export { cat, tree };

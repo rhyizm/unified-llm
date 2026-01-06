@@ -4,12 +4,12 @@ import {
   UnifiedChatResponse,
   UnifiedStreamEventResponse,
   Tool,
-} from '../../types/unified-api';
-import { MCPServerConfig } from '../../types/mcp';
-import BaseProvider from '../base-provider';
-import { OpenAIAgentProvider } from './agent-provider';
-import { OpenAICompletionProvider } from './completion-provider';
-import { OpenAIResponsesProvider } from './responses-provider';
+} from '../../types/unified-api.js';
+import { MCPServerConfig } from '../../types/mcp.js';
+import BaseProvider from '../base-provider.js';
+import { OpenAIAgentProvider } from './agent-provider.js';
+import { OpenAICompletionProvider } from './completion-provider.js';
+import { OpenAIResponsesProvider } from './responses-provider.js';
 
 export class OpenAIProvider extends BaseProvider {
   private provider: BaseProvider;

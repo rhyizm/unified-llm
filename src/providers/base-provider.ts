@@ -5,7 +5,7 @@ import {
   MessageContent,
   ToolUseContent,
   Tool,
-} from '../types/unified-api';
+} from '../types/unified-api.js';
 
 // 抽象基底クラス
 abstract class BaseProvider {

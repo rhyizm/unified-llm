@@ -1,15 +1,15 @@
-import BaseProvider from './providers/base-provider';
-import { OpenAIProvider, OpenAICompletionProvider } from './providers/openai';
-import { AzureOpenAIProvider } from './providers/azure';
-import { AnthropicProvider } from './providers/anthropic';
-import { GeminiProvider } from './providers/google';
-import { DeepSeekProvider } from './providers/deepseek';
+import BaseProvider from './providers/base-provider.js';
+import { OpenAIProvider, OpenAICompletionProvider } from './providers/openai/index.js';
+import { AzureOpenAIProvider } from './providers/azure/index.js';
+import { AnthropicProvider } from './providers/anthropic/index.js';
+import { GeminiProvider } from './providers/google/index.js';
+import { DeepSeekProvider } from './providers/deepseek/index.js';
 import {
   ToolDefinition,
   Tool,
   UnifiedStreamEventResponse,
   ProviderType,
-} from './types/unified-api';
+} from './types/unified-api.js';
 
 // LLMClient構成オプション（実行時用）
 export interface LLMClientConfig {

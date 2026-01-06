@@ -7,11 +7,11 @@ import {
   MessageContent,
   UsageStats,
   Tool,
-} from '../../types/unified-api';
-import { validateChatRequest } from '../../utils/validation';
-import { validateOpenAILogLevel } from '../../validators';
-import { normalizeFunctionForCompletions } from '../../utils/tool-schema';
-import BaseProvider from '../base-provider';
+} from '../../types/unified-api.js';
+import { validateChatRequest } from '../../utils/validation.js';
+import { validateOpenAILogLevel } from '../../validators/index.js';
+import { normalizeFunctionForCompletions } from '../../utils/tool-schema.js';
+import BaseProvider from '../base-provider.js';
 
 export class OpenAIResponsesProvider extends BaseProvider {
   private apiKey: string;

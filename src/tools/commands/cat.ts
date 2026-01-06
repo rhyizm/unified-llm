@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { defineTool } from '../../types/unified-api';
+import { defineTool } from '../../types/unified-api.js';
 
 export const cat = defineTool({
   type: 'function',

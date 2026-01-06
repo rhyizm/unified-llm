@@ -1,8 +1,8 @@
 // src/providers/azure/provider.ts
-import { OpenAICompletionProvider } from '../openai';
+import { OpenAICompletionProvider } from '../openai/index.js';
 import OpenAI, { AzureOpenAI } from 'openai';
 import { TokenCredential } from '@azure/core-auth';
-import { UnifiedChatRequest, UnifiedChatResponse, UnifiedStreamEventResponse } from '../../types/unified-api';
+import { UnifiedChatRequest, UnifiedChatResponse, UnifiedStreamEventResponse } from '../../types/unified-api.js';
 
 /* Azure 固有の接続情報 */
 interface AzureAuth {

@@ -1,1 +1,1 @@
-export { DeepSeekProvider } from './provider';
+export { DeepSeekProvider } from './provider.js';

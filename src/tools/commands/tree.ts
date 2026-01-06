@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { defineTool } from '../../types/unified-api';
+import { defineTool } from '../../types/unified-api.js';
 
 const treeHelper = async (directory: string, indent: string = '', excludeFolders: string[] = [], isLast: boolean = true): Promise<string> => {
   let result = '';

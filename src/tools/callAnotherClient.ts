@@ -1,6 +1,6 @@
-import { LLMClient } from '../llm-client';
-import { defineTool }  from '../types/unified-api';
-import type { Tool }  from '../types/unified-api';
+import { LLMClient } from '../llm-client.js';
+import { defineTool }  from '../types/unified-api.js';
+import type { Tool }  from '../types/unified-api.js';
 
 // Tools will be injected at runtime to avoid circular dependency
 let injectedTools: Tool[] | undefined;

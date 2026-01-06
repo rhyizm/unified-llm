@@ -8,9 +8,9 @@ import {
   MessageRole,
   UsageStats,
   Tool,
-} from '../../types/unified-api';
-import { validateChatRequest } from '../../utils/validation';
-import BaseProvider from '../base-provider';
+} from '../../types/unified-api.js';
+import { validateChatRequest } from '../../utils/validation.js';
+import BaseProvider from '../base-provider.js';
 
 const VALID_MESSAGE_ROLES: MessageRole[] = [
   'system',

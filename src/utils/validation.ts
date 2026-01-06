@@ -1,4 +1,4 @@
-import { UnifiedChatRequest, Message } from '../types/unified-api';
+import { UnifiedChatRequest, Message } from '../types/unified-api.js';
 
 export class ValidationError extends Error {
   constructor(message: string) {

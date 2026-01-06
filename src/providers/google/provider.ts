@@ -16,10 +16,10 @@ import {
   UsageStats,
   GenerationConfig,
   Tool,
-} from '../../types/unified-api';
-import BaseProvider from '../base-provider';
-import { validateChatRequest } from '../../utils/validation';
-import { ResponseFormat } from '../../response-format';
+} from '../../types/unified-api.js';
+import BaseProvider from '../base-provider.js';
+import { validateChatRequest } from '../../utils/validation.js';
+import { ResponseFormat } from '../../response-format.js';
 
 
 // type ChatHistory = { role: 'user' | 'assistant'; content: string }[];

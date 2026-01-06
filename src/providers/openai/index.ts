@@ -1,5 +1,5 @@
-export { OpenAICompletionProvider } from './completion-provider';
-export { OpenAIAgentProvider } from './agent-provider';
-export { OpenAIProvider } from './provider';
-export { OpenAIResponsesProvider } from './responses-provider';
-export { callResponsesApiAgent } from './responses-api-agent';
+export { OpenAICompletionProvider } from './completion-provider.js';
+export { OpenAIAgentProvider } from './agent-provider.js';
+export { OpenAIProvider } from './provider.js';
+export { OpenAIResponsesProvider } from './responses-provider.js';
+export { callResponsesApiAgent } from './responses-api-agent.js';

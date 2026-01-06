@@ -1,4 +1,4 @@
-import { ResponseFormat } from '../response-format';
+import { ResponseFormat } from '../response-format.js';
 
 export type ProviderType =
   | 'openai'

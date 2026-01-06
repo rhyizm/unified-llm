@@ -1,4 +1,4 @@
-import { defineTool } from '../types/unified-api';
+import { defineTool } from '../types/unified-api.js';
 
 /**
  * Returns information about the project author

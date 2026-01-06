@@ -1,8 +1,8 @@
-import { LLMClient } from './llm-client';
-import tools from './tools';
-import { ResponseFormat, createResponseFormat, ResponseFormats } from './response-format';
-import { callResponsesApiAgent } from "./providers/openai/responses-api-agent";
-import { Thread } from "./thread";
+import { LLMClient } from './llm-client.js';
+import tools from './tools/index.js';
+import { ResponseFormat, createResponseFormat, ResponseFormats } from './response-format.js';
+import { callResponsesApiAgent } from "./providers/openai/responses-api-agent.js";
+import { Thread } from "./thread.js";
 
 export { 
   LLMClient,
@@ -15,6 +15,6 @@ export {
 };
 
 // Type exports
-export type { LLMClientConfig } from './llm-client';
-export type { Tool } from './types/unified-api';
-export type { ResponseFormatConfig, JsonSchema } from './response-format';
+export type { LLMClientConfig } from './llm-client.js';
+export type { Tool } from './types/unified-api.js';
+export type { ResponseFormatConfig, JsonSchema } from './response-format.js';
