@@ -1,6 +1,8 @@
 import { LLMClient } from './llm-client';
 import tools from './tools';
 import { ResponseFormat, createResponseFormat, ResponseFormats } from './response-format';
+import { callResponsesApiAgent } from "./providers/openai/responses-api-agent";
+import { Thread } from "./thread";
 
 export { 
   LLMClient,
@@ -8,6 +10,8 @@ export {
   ResponseFormat,
   createResponseFormat,
   ResponseFormats,
+  callResponsesApiAgent,
+  Thread
 };
 
 // Type exports

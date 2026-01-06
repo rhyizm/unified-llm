@@ -6,4 +6,5 @@ export interface MCPServerConfig {
   env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
+  allowedTools?: string[];
 }
