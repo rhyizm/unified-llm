@@ -8,3 +8,9 @@ export interface MCPServerConfig {
   headers?: Record<string, string>;
   allowedTools?: string[];
 }
+
+export type McpTool = {
+  name: string;
+  description?: string;
+  inputSchema: unknown;
+};

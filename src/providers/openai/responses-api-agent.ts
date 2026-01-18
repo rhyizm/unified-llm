@@ -7,7 +7,7 @@ import {
   UsageTotals,
 } from "../../utils/token-utils.js";
 import { Thread } from "../../thread.js";
-import type { MCPServerConfig, Logger, OpenAIFunctionCallOutput } from "../../types/index.js";
+import type { MCPServerConfig, McpTool, Logger, OpenAIFunctionCallOutput } from "../../types/index.js";
 import { createMcpTransport, sanitizeToolCallResult } from "../../utils/mcp-utils.js";
 import { logTimed, toModelSafeError } from "../../utils/logging.js";
 import { Clock, createDefaultClock } from "../../utils/timing.js";
@@ -293,7 +293,7 @@ async function setupMcpClientsAndTools(options: {
       await mcpClient.connect(transport, {});
       mcpClients.push(mcpClient);
 
-      const toolsList = await mcpClient.listTools();
+      const toolsList = (await mcpClient.listTools()) as { tools: McpTool[] };
 
       const allowedTools = toolsList.tools.filter((tool) =>
         server.allowedTools?.includes(tool.name) ?? true
