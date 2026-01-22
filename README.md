@@ -158,6 +158,58 @@ console.log(response.message.content);
 // AI will read the actual file and give you insights about the errors!
 ```
 
+### Using tools from an MCP server
+
+You can pull tools from an MCP server and pass them directly to `LLMClient` as function-calling tools. The MCP tool `inputSchema` maps cleanly to OpenAI/Responses function parameters.
+
+```typescript
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamable-http.js';
+import { LLMClient } from '@unified-llm/core';
+
+const MCP_SERVER_URL = process.env.MCP_SERVER_URL!; // e.g. http://localhost:3000
+
+async function main() {
+  // Connect to MCP server (Streamable HTTP example)
+  const transport = new StreamableHTTPClientTransport(new URL('/mcp', MCP_SERVER_URL));
+  const mcpClient = new Client(
+    { name: 'local-mcp-responses-client', version: '1.0.0' },
+    { capabilities: {} }
+  );
+  await mcpClient.connect(transport);
+
+  // Fetch tools from MCP and adapt to function-calling tools
+  const toolsList = await mcpClient.listTools();
+  const tools = toolsList.tools.map((tool) => ({
+    type: 'function' as const,
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.inputSchema,
+    },
+  }));
+
+  const client = new LLMClient({
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    apiKey: process.env.OPENAI_API_KEY,
+    tools,
+  });
+
+  const res = await client.chat({
+    messages: [{
+      role: 'user',
+      content: 'Use available tools to help me',
+      createdAt: new Date(),
+    }],
+  });
+
+  console.log(res.message.content);
+}
+
+main().catch(console.error);
+```
+
 ### Streaming with Function Calls
 
 During streaming, tool calls are handled provider-side for you. When a model requests tool input mid-stream, the provider accumulates the tool call, executes your registered tool handlers, and continues streaming the final assistant text. You only observe text events: `start → text_delta* → stop`.

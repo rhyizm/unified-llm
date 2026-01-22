@@ -1,15 +1,10 @@
+import type { Usage } from '../types/usage.js';
+
 export type ModelPricingKey =
   | "gpt-5.1"
   | "gpt-5"
   | "gpt-5-mini"
   | "gpt-5-nano";
-
-export type UsageTotals = {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  cachedInputTokens?: number;
-};
 
 type Pricing = {
   input: number;
@@ -43,7 +38,7 @@ const MODEL_PRICING: Record<ModelPricingKey, Pricing> = {
 };
 
 export function calculateUsageCost(
-  usage: UsageTotals,
+  usage: Usage,
   model: ModelPricingKey,
   options?: { cachedInputTokens?: number; currencyMultiplier?: number },
 ): number {
@@ -77,7 +72,7 @@ export function calculateUsageCost(
 // ---------------------------------------------------------
 // トークン使用量集計ヘルパー
 // ---------------------------------------------------------
-export function accumulateUsage(totals: UsageTotals, usage: unknown) {
+export function accumulateUsage(totals: Usage, usage: unknown) {
   if (!usage || typeof usage !== "object") return;
 
   const input = Number(

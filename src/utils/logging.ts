@@ -8,6 +8,14 @@ export function toModelSafeError(err: unknown) {
   return { name: "Error", message: String(err) };
 }
 
+export const NOOP_LOGGER: Logger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child: () => NOOP_LOGGER,
+};
+
 /**
  * Runs an async task while measuring duration and logging success or failure.
  * Logs include duration_ms and, on failure, a normalized error object.

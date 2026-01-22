@@ -1,5 +1,3 @@
-export type OpenAIFunctionCallOutput = {
-  type: "function_call_output";
-  call_id: string;
-  output: string;
-};
+import type { UnifiedFunctionCallItem } from './unified-response.js';
+
+export type OpenAIFunctionCallOutput = UnifiedFunctionCallItem;
