@@ -19,6 +19,10 @@ import {
   type LocalToolHandler,
   type NormalizedToolCall,
 } from "../../utils/tools/execute-tool-calls.js";
+import {
+  normalizeLocalTools,
+  type LocalToolsInput,
+} from "../../utils/tools/normalize-local-tools.js";
 
 // ---------------------------------------------------------
 // Responses API を叩くヘルパー（OpenAI固有）
@@ -77,7 +81,24 @@ async function callResponsesAPI(
   const canProgress = shouldStream && typeof sseCallback === "function";
 
   if (!shouldStream) {
-    return res.json();
+    const rawText = await res.text();
+    const trimmed = rawText.trim();
+    if (!trimmed) {
+      throw new Error("OpenAI Responses API error: empty JSON response body.");
+    }
+    try {
+      return JSON.parse(trimmed);
+    } catch (err) {
+      const maxPreview = 2000;
+      const preview =
+        rawText.length > maxPreview
+          ? `${rawText.slice(0, maxPreview)}... (truncated, ${rawText.length} chars)`
+          : rawText;
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `OpenAI Responses API error: failed to parse JSON response: ${message}\n${preview}`,
+      );
+    }
   }
 
   if (!res.body) {
@@ -439,10 +460,7 @@ export async function callResponsesApiAgent(options: {
   thread?: Thread;
   structuredOutput?: StructuredOutput;
   mcpServers?: MCPServerConfig[];
-  localTools?: {
-    tools: OpenAiTool[];
-    handlers: Map<string, LocalToolHandler>;
-  };
+  localTools?: LocalToolsInput;
   config?: {
     temperature?: number;
     truncation?: TruncationOption;
@@ -484,6 +502,8 @@ export async function callResponsesApiAgent(options: {
   const temperature = config?.temperature ?? undefined;
   const truncation = config?.truncation ?? undefined;
 
+  const normalizedLocalTools = normalizeLocalTools(localTools);
+
   let mcpClients: any[] = [];
   let toolNameToClient = new Map<string, any>();
   let openAiTools: OpenAiTool[] = [];
@@ -512,10 +532,10 @@ export async function callResponsesApiAgent(options: {
 
     openAiTools = new McpToolCatalog(setup.mcpTools).toOpenAiTools();
 
-    if (localTools) {
+    if (normalizedLocalTools) {
       const seenLocalToolNames = new Set<string>();
 
-      for (const tool of localTools.tools) {
+      for (const tool of normalizedLocalTools.tools) {
         if (toolNameToClient.has(tool.name)) {
           throw new Error(
             `Tool name collision between MCP and local tools: ${tool.name}`,
@@ -524,13 +544,13 @@ export async function callResponsesApiAgent(options: {
         if (seenLocalToolNames.has(tool.name)) {
           throw new Error(`Duplicate local tool name: ${tool.name}`);
         }
-        if (!localTools.handlers.has(tool.name)) {
+        if (!normalizedLocalTools.handlers.has(tool.name)) {
           throw new Error(`Missing local tool handler: ${tool.name}`);
         }
         seenLocalToolNames.add(tool.name);
       }
 
-      openAiTools.push(...localTools.tools);
+      openAiTools.push(...normalizedLocalTools.tools);
     }
 
     // ---------------------------------------------------------
@@ -540,7 +560,7 @@ export async function callResponsesApiAgent(options: {
       baseInput,
       openAiTools,
       toolNameToClient,
-      localToolHandlers: localTools?.handlers,
+      localToolHandlers: normalizedLocalTools?.handlers,
       usage,
       model,
       apiKey: resolvedApiKey,

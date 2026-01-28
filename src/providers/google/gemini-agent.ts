@@ -18,6 +18,10 @@ import {
   type LocalToolHandler,
   type NormalizedToolCall,
 } from "../../utils/tools/execute-tool-calls.js";
+import {
+  normalizeLocalTools,
+  type LocalToolsInput,
+} from "../../utils/tools/normalize-local-tools.js";
 
 import { sanitizeJsonSchema } from "./sanitizeJsonSchema.js";
 
@@ -1183,10 +1187,7 @@ export async function callGeminiAgent(options: {
   thread?: Thread;
   structuredOutput?: StructuredOutput;
   mcpServers?: MCPServerConfig[];
-  localTools?: {
-    tools: OpenAiTool[];
-    handlers: Map<string, LocalToolHandler>;
-  };
+  localTools?: LocalToolsInput;
   config?: {
     temperature?: number;
     truncation?: TruncationOption;
@@ -1230,6 +1231,8 @@ export async function callGeminiAgent(options: {
   const temperature = config?.temperature ?? undefined;
   const truncation = config?.truncation ?? undefined;
 
+  const normalizedLocalTools = normalizeLocalTools(localTools);
+
   let mcpClients: any[] = [];
   let toolNameToClient = new Map<string, any>();
   let openAiTools: OpenAiTool[] = [];
@@ -1258,23 +1261,23 @@ export async function callGeminiAgent(options: {
     openAiTools = new McpToolCatalog(setup.mcpTools).toOpenAiTools();
 
     // 追加の local tools を検査して合成
-    if (localTools) {
+    if (normalizedLocalTools) {
       const seenLocalToolNames = new Set<string>();
 
-      for (const tool of localTools.tools) {
+      for (const tool of normalizedLocalTools.tools) {
         if (toolNameToClient.has(tool.name)) {
           throw new Error(`Tool name collision between MCP and local tools: ${tool.name}`);
         }
         if (seenLocalToolNames.has(tool.name)) {
           throw new Error(`Duplicate local tool name: ${tool.name}`);
         }
-        if (!localTools.handlers.has(tool.name)) {
+        if (!normalizedLocalTools.handlers.has(tool.name)) {
           throw new Error(`Missing local tool handler: ${tool.name}`);
         }
         seenLocalToolNames.add(tool.name);
       }
 
-      openAiTools.push(...localTools.tools);
+      openAiTools.push(...normalizedLocalTools.tools);
     }
 
     // 2) LLM + tool calling loop
@@ -1282,7 +1285,7 @@ export async function callGeminiAgent(options: {
       baseInput,
       openAiTools,
       toolNameToClient,
-      localToolHandlers: localTools?.handlers,
+      localToolHandlers: normalizedLocalTools?.handlers,
       usage,
       model,
       apiKey: resolvedApiKey,
