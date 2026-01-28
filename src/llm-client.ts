@@ -37,6 +37,7 @@ export interface LLMClientConfig {
 }
 
 // ファクトリークラス
+/** @deprecated Use provider-specific clients or new API entry points instead. */
 export class LLMClient {
   private baseProvider: BaseProvider;
   private tools?: Tool[];
