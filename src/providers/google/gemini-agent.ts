@@ -1,7 +1,7 @@
 // src/providers/google/gemini-agent.ts
 import { accumulateUsage } from "../../utils/token-utils.js";
 import { Thread } from "../../thread.js";
-import type { MCPServerConfig, Logger } from "../../types/index.js";
+import type { AgentCallOptions, Logger, StructuredOutput } from "../../types/index.js";
 import type { Usage } from "../../types/usage.js";
 import { logTimed, NOOP_LOGGER } from "../../utils/logging.js";
 import { Clock, createDefaultClock } from "../../utils/timing.js";
@@ -20,7 +20,6 @@ import {
 } from "../../utils/tools/execute-tool-calls.js";
 import {
   normalizeLocalTools,
-  type LocalToolsInput,
 } from "../../utils/tools/normalize-local-tools.js";
 
 import { sanitizeJsonSchema } from "./sanitizeJsonSchema.js";
@@ -915,15 +914,6 @@ function getOutputText(response: any): string {
 // Gemini tool calling loop
 // ---------------------------------------------------------
 
-type StructuredOutput = {
-  format: {
-    type: "json_schema";
-    name: string;
-    schema: unknown;
-    strict?: boolean;
-  };
-};
-
 type TruncationOption = string;
 type TemperatureOption = number;
 
@@ -1144,25 +1134,6 @@ async function runToolCallingLoop(options: {
       parts: functionResponseParts,
     });
 
-    // thread への履歴追記（互換維持のためベストエフォート）
-    try {
-      thread?.appendToHistory?.([
-        ...functionCalls.map((fc) => ({
-          type: "function_call",
-          name: fc.name,
-          arguments: fc.args ?? {},
-          call_id: fc.id ?? undefined,
-          id: fc.id ?? undefined,
-        })),
-        ...normalizedResults.map((r) => ({
-          type: "function_call_output",
-          call_id: r.callId,
-          output: r.output,
-        })),
-      ]);
-    } catch {
-      // ignore
-    }
   }
 
   if (!lastResponse) throw new Error("No response from Gemini API.");
@@ -1178,25 +1149,7 @@ async function runToolCallingLoop(options: {
  * 3) runToolCallingLoop で LLM→tool→LLM を回す
  * 4) 最終レスポンスからテキストのみを抽出して返す
  */
-export async function callGeminiAgent(options: {
-  model: string;
-  apiKey?: string;
-  endpoint?: string;
-  isStream?: boolean;
-  baseInput: any[];
-  thread?: Thread;
-  structuredOutput?: StructuredOutput;
-  mcpServers?: MCPServerConfig[];
-  localTools?: LocalToolsInput;
-  config?: {
-    temperature?: number;
-    truncation?: TruncationOption;
-  };
-  sseCallback?: (event: any) => void;
-  signal?: AbortSignal;
-  logger?: Logger;
-  clock?: Clock;
-}): Promise<{
+export async function callGeminiAgent(options: AgentCallOptions): Promise<{
   output: string | unknown;
   usage: Usage;
   rawResponse: unknown;
@@ -1306,6 +1259,15 @@ export async function callGeminiAgent(options: {
     // 3) 最終アウトプット（テキストのみ）
     const outputText = getOutputText(lastResponse);
     logger.info("responses.output_text", { outputText });
+
+    if (thread) {
+      thread.appendToHistory([
+        {
+          role: "assistant",
+          content: outputText,
+        },
+      ]);
+    }
 
     return { output: outputText, usage, rawResponse: lastResponse };
   } finally {

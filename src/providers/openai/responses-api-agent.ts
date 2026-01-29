@@ -3,7 +3,7 @@ import {
   accumulateUsage,
 } from "../../utils/token-utils.js";
 import { Thread } from "../../thread.js";
-import type { MCPServerConfig, Logger } from "../../types/index.js";
+import type { AgentCallOptions, Logger, StructuredOutput } from "../../types/index.js";
 import type { Usage } from "../../types/usage.js";
 import { logTimed, NOOP_LOGGER } from "../../utils/logging.js";
 import { Clock, createDefaultClock } from "../../utils/timing.js";
@@ -21,7 +21,6 @@ import {
 } from "../../utils/tools/execute-tool-calls.js";
 import {
   normalizeLocalTools,
-  type LocalToolsInput,
 } from "../../utils/tools/normalize-local-tools.js";
 
 // ---------------------------------------------------------
@@ -274,15 +273,6 @@ function toNormalizedToolCalls(
   });
 }
 
-type StructuredOutput = {
-  format: {
-    type: "json_schema";
-    name: string;
-    schema: unknown;
-    strict?: boolean;
-  };
-};
-
 type TruncationOption = string;
 type TemperatureOption = number;
 
@@ -378,9 +368,6 @@ async function runToolCallingLoop(options: {
   accumulateUsage(usage, response?.usage);
 
   thread?.updatePreviousResponseId(response?.id);
-  if (thread && Array.isArray(response?.output)) {
-    thread.appendToHistory(response.output);
-  }
 
   let lastResponse: any = response;
 
@@ -410,8 +397,6 @@ async function runToolCallingLoop(options: {
         output: r.output,
       }));
 
-    thread?.appendToHistory(apiFunctionOutputs);
-
     response = await logTimed(
       logger,
       clock,
@@ -438,9 +423,6 @@ async function runToolCallingLoop(options: {
     accumulateUsage(usage, response?.usage);
 
     thread?.updatePreviousResponseId(response?.id);
-    if (thread && Array.isArray(response?.output)) {
-      thread.appendToHistory(response.output);
-    }
 
     lastResponse = response;
   }
@@ -451,25 +433,7 @@ async function runToolCallingLoop(options: {
 /**
  * OpenAI Responses API を用いた Agent 実行（MCP/ローカルツール対応）
  */
-export async function callResponsesApiAgent(options: {
-  model: string;
-  apiKey?: string;
-  endpoint?: string;
-  isStream?: boolean;
-  baseInput: any[];
-  thread?: Thread;
-  structuredOutput?: StructuredOutput;
-  mcpServers?: MCPServerConfig[];
-  localTools?: LocalToolsInput;
-  config?: {
-    temperature?: number;
-    truncation?: TruncationOption;
-  };
-  sseCallback?: (event: any) => void;
-  signal?: AbortSignal;
-  logger?: Logger;
-  clock?: Clock;
-}): Promise<{
+export async function callResponsesApiAgent(options: AgentCallOptions): Promise<{
   output: string | unknown;
   usage: Usage;
   rawResponse: unknown;
@@ -585,6 +549,15 @@ export async function callResponsesApiAgent(options: {
     // ---------------------------------------------------------
     const outputText = getOutputText(lastResponse);
     logger.info("responses.output_text", { outputText });
+
+    if (thread) {
+      thread.appendToHistory([
+        {
+          role: "assistant",
+          content: lastResponse?.output ?? outputText,
+        },
+      ]);
+    }
 
     return { output: outputText, usage, rawResponse: lastResponse };
   } finally {

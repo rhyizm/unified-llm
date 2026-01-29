@@ -44,6 +44,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
+    "test:responses": "vitest tests/unit/responses-agent.test.ts tests/e2e/responses-agent-real.test.ts",
+    "test:gemini": "vitest tests/unit/gemini-agent.test.ts tests/e2e/gemini-agent-real.test.ts",
     "script": "tsx"
   },
 

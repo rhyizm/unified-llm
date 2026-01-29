@@ -4,6 +4,7 @@ import { ResponseFormat, createResponseFormat, ResponseFormats } from './respons
 import { callResponsesApiAgent } from './providers/openai/responses-api-agent.js';
 import { callGeminiAgent } from './providers/google/gemini-agent.js';
 import { Thread } from "./thread.js";
+import { callAgent } from './call-agent.js';
 
 export { 
   LLMClient,
@@ -13,6 +14,7 @@ export {
   ResponseFormats,
   callResponsesApiAgent,
   callGeminiAgent,
+  callAgent,
   Thread
 };
 
