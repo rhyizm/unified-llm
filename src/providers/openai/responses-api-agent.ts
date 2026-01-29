@@ -554,7 +554,7 @@ export async function callResponsesApiAgent(options: AgentCallOptions): Promise<
       thread.appendToHistory([
         {
           role: "assistant",
-          content: lastResponse?.output ?? outputText,
+          content: outputText,
         },
       ]);
     }
